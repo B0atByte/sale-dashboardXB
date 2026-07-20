@@ -1,94 +1,83 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { previousRange } from "../utils/data";
+import { shiftRange } from "../utils/data";
 
 /** รีเฟรชอัตโนมัติทุก 20 วินาที (near-realtime) */
 export const REFRESH_INTERVAL_MS = 20000;
 
-/**
- * เรียก API แบบ relative path (/api/...) เสมอ:
- * - โหมด dev: Vite proxy แนบ x-api-key ให้ฝั่งเซิร์ฟเวอร์
- * - โหมด production: nginx proxy แนบ x-api-key ให้
- * โค้ดฝั่งเบราว์เซอร์จึงไม่ต้องรู้จักคีย์ API เลย
- */
 async function fetchJson(url, signal) {
-  const res = await fetch(url, { signal });
-  if (!res.ok) {
-    throw new Error(`HTTP ${res.status}`);
-  }
+  const res = await fetch(url, { credentials: "same-origin", signal });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
   return res.json();
 }
 
 /** ประกอบ query string จากตัวกรองที่มีค่า */
-function buildQuery({ from, to, platform }) {
+function buildQuery({ from, to, platform, category, campaign, product } = {}) {
   const params = new URLSearchParams();
   if (from) params.set("from", from);
   if (to) params.set("to", to);
   if (platform) params.set("platform", platform);
+  if (category) params.set("category", category);
+  if (campaign) params.set("campaign", campaign);
+  if (product) params.set("product", product);
   const qs = params.toString();
   return qs ? `?${qs}` : "";
 }
 
 /**
- * Hook หลักสำหรับดึงข้อมูลยอดขาย:
- * - ดึง /api/sales และ /api/sales/summary พร้อมกัน (Promise.all)
- * - ยกเลิก request เก่าด้วย AbortController เมื่อตัวกรองเปลี่ยนหรือ unmount
- * - รีเฟรชอัตโนมัติทุก 5 นาที
+ * Hook หลัก — ดึง /api/sales และ /api/sales/summary พร้อมกัน, รีเฟรชอัตโนมัติ
  */
-export default function useSalesData(filters) {
+export default function useSalesData(filters, refreshMs = REFRESH_INTERVAL_MS) {
   const [records, setRecords] = useState([]);
   const [summary, setSummary] = useState(null);
   const [updatedAt, setUpdatedAt] = useState(null);
   const [fromCache, setFromCache] = useState(false);
-  // stale = backend ดึง Google Sheets ไม่สำเร็จและเสิร์ฟแคชเก่าแทน (ไม่ใช่ cache hit ปกติ)
   const [stale, setStale] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
   const abortRef = useRef(null);
 
-  const load = useCallback(async (force = false, silent = false) => {
-    // ยกเลิก request ที่ค้างอยู่ก่อนเริ่มรอบใหม่
-    abortRef.current?.abort();
-    const controller = new AbortController();
-    abortRef.current = controller;
+  const load = useCallback(
+    async (force = false, silent = false) => {
+      abortRef.current?.abort();
+      const controller = new AbortController();
+      abortRef.current = controller;
 
-    // silent = การรีเฟรชเบื้องหลัง (auto ทุก 20 วิ) — ไม่โชว์สถานะโหลด/ป้าย
-    if (!silent) setLoading(true);
-    setError(false);
+      if (!silent) setLoading(true);
+      setError(false);
 
-    const query = buildQuery(filters);
-    // force=true (ปุ่มรีเฟรช): แนบ fresh=1 ให้ backend ข้ามแคชแล้วดึงสดจาก Google ทันที
-    const freshQ = force ? (query ? "&fresh=1" : "?fresh=1") : "";
-    try {
-      const [sales, sum] = await Promise.all([
-        fetchJson(`/api/sales${query}${freshQ}`, controller.signal),
-        fetchJson(`/api/sales/summary${query}${freshQ}`, controller.signal),
-      ]);
-      setRecords(sales.records ?? []);
-      setSummary(sum);
-      setUpdatedAt(sum.updatedAt ?? sales.updatedAt ?? null);
-      setFromCache(Boolean(sum.fromCache || sales.fromCache));
-      setStale(Boolean(sum.stale || sales.stale));
-      setLoading(false);
-    } catch (err) {
-      // ถูกยกเลิกเอง (เปลี่ยนตัวกรอง/unmount) ไม่ถือเป็น error
-      if (err.name === "AbortError") return;
-      setError(true);
-      setLoading(false);
-    }
-    // filters ถูก destructure เป็นค่า primitive เพื่อให้ dependency เสถียร
-  }, [filters.from, filters.to, filters.platform]); // eslint-disable-line react-hooks/exhaustive-deps
+      const query = buildQuery(filters);
+      const freshQ = force ? (query ? "&fresh=1" : "?fresh=1") : "";
+      try {
+        const [sales, sum] = await Promise.all([
+          fetchJson(`/api/sales${query}${freshQ}`, controller.signal),
+          fetchJson(`/api/sales/summary${query}${freshQ}`, controller.signal),
+        ]);
+        setRecords(sales.records ?? []);
+        setSummary(sum);
+        setUpdatedAt(sum.updatedAt ?? sales.updatedAt ?? null);
+        setFromCache(Boolean(sum.fromCache || sales.fromCache));
+        setStale(Boolean(sum.stale || sales.stale));
+        setLoading(false);
+      } catch (err) {
+        if (err.name === "AbortError") return;
+        setError(true);
+        setLoading(false);
+      }
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [filters.from, filters.to, filters.platform, filters.category, filters.campaign, filters.product]
+  );
 
   useEffect(() => {
     load();
-    // auto-refresh แบบไม่บังคับสด (TTL 15 วิ < รอบ 20 วิ จึงมักได้ข้อมูลใหม่อยู่แล้ว)
-    const timerId = setInterval(() => load(false, true), REFRESH_INTERVAL_MS);
+    // auto-refresh แบบไม่บังคับสด (รอบตามตั้งค่า)
+    const timerId = setInterval(() => load(false, true), refreshMs);
     return () => {
       clearInterval(timerId);
       abortRef.current?.abort();
     };
-  }, [load]);
+  }, [load, refreshMs]);
 
-  // ปุ่มรีเฟรช/ลองใหม่ = ดึงสดทันที (ข้ามแคชฝั่ง backend)
   return {
     records,
     summary,
@@ -102,64 +91,70 @@ export default function useSalesData(filters) {
 }
 
 /**
- * ดึงรายชื่อช่องทางทั้งหมดจาก summary แบบไม่กรอง (เรียกครั้งเดียวตอน mount)
- * เพื่อใช้เติมแท็บช่องทาง — จะได้เห็นทุกช่องทางเสมอแม้กำลังกรองข้อมูลอยู่
- * เรียงตาม GMV มากไปน้อย
+ * ดึงตัวเลือกฟิลเตอร์จาก summary แบบไม่กรอง (ช่องทาง + แคมเปญ) — เรียกครั้งเดียวตอน mount
  */
-export function usePlatformOptions() {
-  const [platforms, setPlatforms] = useState([]);
+export function useFilterOptions() {
+  const [options, setOptions] = useState({ platforms: [], campaigns: [] });
 
   useEffect(() => {
     const controller = new AbortController();
     fetchJson("/api/sales/summary", controller.signal)
       .then((data) => {
-        const list = (data.byPlatform ?? [])
+        const platforms = (data.byPlatform ?? [])
           .slice()
           .sort((a, b) => (b.gmv || 0) - (a.gmv || 0))
           .map((p) => String(p.platform || "").trim())
           .filter(Boolean);
-        setPlatforms(list);
+        setOptions({ platforms, campaigns: data.campaigns ?? [] });
       })
-      .catch(() => {
-        /* ไม่บล็อกหน้าจอหากดึงรายชื่อช่องทางไม่สำเร็จ */
-      });
+      .catch(() => {});
     return () => controller.abort();
   }, []);
 
-  return platforms;
+  return options;
 }
 
 /**
- * ดึง KPI ของ "ช่วงก่อนหน้า" (ยาวเท่ากัน) เพื่อคำนวณ % เทียบ
- * ทำงานเฉพาะเมื่อมีช่วงวันที่ครบ (from & to); ไม่งั้นคืน null
- * ใช้ platform เดียวกับตัวกรองปัจจุบัน
+ * เทียบยอดกับปีก่อน/สัปดาห์ก่อน/เดือนก่อน (VS LY / VS LW / VS LM)
+ * - ใช้ช่วงวันที่ที่เลือก ถ้าไม่ได้เลือก ใช้ช่วงของข้อมูลจริง (span) แทน → แสดงอัตโนมัติเสมอ
+ * - VS LY = เลื่อนย้อน 1 ปี (ช่วงวันเดียวกัน), VS LW = ย้อน 7 วัน, VS LM = ย้อน 30 วัน
+ * คืน { ly, lw, lm } โดยแต่ละตัวเป็น kpi object (หรือ null)
  */
-export function useComparisonSummary(filters) {
-  const [prevKpi, setPrevKpi] = useState(null);
-  const prev = previousRange(filters.from, filters.to);
-  const prevKey = prev
-    ? `${prev.from}|${prev.to}|${filters.platform || ""}`
+export function useComparisons(filters, span) {
+  const [cmp, setCmp] = useState(null);
+  const from = filters.from || span?.from || "";
+  const to = filters.to || span?.to || "";
+  const hasRange = Boolean(from && to);
+  const key = hasRange
+    ? JSON.stringify({
+        from,
+        to,
+        platform: filters.platform,
+        category: filters.category,
+        campaign: filters.campaign,
+        product: filters.product,
+      })
     : "";
 
   useEffect(() => {
-    if (!prev) {
-      setPrevKpi(null);
+    if (!hasRange) {
+      setCmp(null);
       return;
     }
     const controller = new AbortController();
-    const q = buildQuery({
-      from: prev.from,
-      to: prev.to,
-      platform: filters.platform,
-    });
-    fetchJson(`/api/sales/summary${q}`, controller.signal)
-      .then((data) => setPrevKpi(data.kpi ?? null))
-      .catch(() => {
-        /* ไม่บล็อก UI ถ้าดึงช่วงก่อนหน้าไม่สำเร็จ */
-      });
+    const fetchKpi = (kind) => {
+      const shifted = shiftRange(from, to, kind);
+      const q = buildQuery({ ...filters, from: shifted.from, to: shifted.to });
+      return fetchJson(`/api/sales/summary${q}`, controller.signal)
+        .then((d) => d.kpi ?? null)
+        .catch(() => null);
+    };
+    Promise.all([fetchKpi("year"), fetchKpi("week"), fetchKpi("month")])
+      .then(([ly, lw, lm]) => setCmp({ ly, lw, lm }))
+      .catch(() => {});
     return () => controller.abort();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [prevKey]);
+  }, [key]);
 
-  return prevKpi;
+  return cmp;
 }

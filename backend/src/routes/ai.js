@@ -8,23 +8,13 @@ import { Router } from 'express';
 import crypto from 'node:crypto';
 import { getSalesData } from '../services/sheets.js';
 import { chatCompletion, aiEnabled, AiError } from '../services/ai.js';
+import { applyFilters } from '../services/analytics.js';
+import { getSettings } from '../services/settings.js';
 
 const router = Router();
 
 function num2(n) {
   return Math.round(n * 100) / 100;
-}
-
-/** กรอง records ตาม query (เหมือนใน sales.js) */
-function applyFilters(records, { from, to, platform }) {
-  let out = records;
-  if (from) out = out.filter((r) => r.date >= from);
-  if (to) out = out.filter((r) => r.date <= to);
-  if (platform) {
-    const want = String(platform).trim().toLowerCase();
-    out = out.filter((r) => r.platform.trim().toLowerCase() === want);
-  }
-  return out;
 }
 
 /** สร้าง "สรุปย่อ" ของข้อมูลไว้ป้อนให้ AI (กระชับ ไม่ส่ง record ดิบทั้งหมด) */
@@ -37,24 +27,26 @@ function buildDigest(records, { from, to, platform }) {
   const prod = new Map();
   const day = new Map();
 
+  const gmvField = getSettings().gmvField;
   for (const r of records) {
-    totalGmv += r.lineTotal;
+    const g = r[gmvField] ?? r.lineTotal;
+    totalGmv += g;
     totalUnits += r.quantity;
     totalNet += r.netRevenue;
     if (r.orderNo) orderNos.add(r.orderNo);
 
     const pk = r.platform.trim();
     const p = plat.get(pk) || { platform: pk, gmv: 0, orders: new Set() };
-    p.gmv += r.lineTotal;
+    p.gmv += g;
     if (r.orderNo) p.orders.add(r.orderNo);
     plat.set(pk, p);
 
     const pr = prod.get(r.productName) || { name: r.productName, units: 0, gmv: 0 };
     pr.units += r.quantity;
-    pr.gmv += r.lineTotal;
+    pr.gmv += g;
     prod.set(r.productName, pr);
 
-    if (r.date) day.set(r.date, (day.get(r.date) || 0) + r.lineTotal);
+    if (r.date) day.set(r.date, (day.get(r.date) || 0) + g);
   }
 
   const orders = orderNos.size;

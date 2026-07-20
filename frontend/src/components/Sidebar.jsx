@@ -1,4 +1,5 @@
 import { useLang } from "../i18n";
+import { useSettings } from "../settings";
 import { platformColor } from "../utils/data";
 import DemoBadge from "./DemoBadge";
 
@@ -11,6 +12,7 @@ import DemoBadge from "./DemoBadge";
  */
 export default function Sidebar({ platforms = [], active = "", onSelect }) {
   const { t } = useLang();
+  const { settings } = useSettings();
   const items = [{ name: "", label: t("nav.overview"), color: "#4f46e5" }].concat(
     platforms.map((p) => ({ name: p, label: p, color: platformColor(p) }))
   );
@@ -24,16 +26,11 @@ export default function Sidebar({ platforms = [], active = "", onSelect }) {
           alt="xBloom logo"
           className="h-10 w-10 rounded-2xl shadow-lg shadow-slate-200"
         />
-        <div>
-          <div className="flex items-center gap-2">
-            <h1 className="text-base font-bold tracking-tighter text-slate-800">
-              xBloom
-            </h1>
-            <DemoBadge />
-          </div>
-          <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">
-            Sale Dashboard
-          </p>
+        <div className="min-w-0">
+          <h1 className="text-sm font-bold leading-tight tracking-tight text-slate-800">
+            {settings.brandTitle}
+          </h1>
+          {settings.showDemo && <DemoBadge className="mt-1" />}
         </div>
       </div>
 
@@ -67,7 +64,7 @@ export default function Sidebar({ platforms = [], active = "", onSelect }) {
 
       {/* ท้าย sidebar */}
       <div className="border-t border-slate-100 px-6 py-4">
-        <p className="text-[10px] font-bold text-slate-400">{t("footer")}</p>
+        <p className="text-[10px] font-bold text-slate-400">{settings.brandFooter}</p>
       </div>
     </aside>
   );

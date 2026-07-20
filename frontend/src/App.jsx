@@ -1,5 +1,6 @@
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 import { LanguageProvider } from "./i18n";
+import { SettingsProvider } from "./settings";
 import useAuth from "./hooks/useAuth";
 import PasscodeGate from "./components/PasscodeGate";
 import SalesPage from "./pages/SalesPage";
@@ -9,7 +10,7 @@ import SalesPage from "./pages/SalesPage";
  * ล็อกอินแล้วค่อยเข้าหน้าแดชบอร์ด
  */
 function AuthGate() {
-  const { checked, authed, login, logout } = useAuth();
+  const { checked, authed, user, login, logout } = useAuth();
 
   // กำลังเช็ค session — โชว์โลโก้ค้างไว้กันจอกระพริบ
   if (!checked) {
@@ -27,13 +28,15 @@ function AuthGate() {
   if (!authed) return <PasscodeGate onLogin={login} />;
 
   return (
-    <BrowserRouter>
-      <Routes>
-        <Route path="/" element={<Navigate to="/sales" replace />} />
-        <Route path="/sales" element={<SalesPage onLogout={logout} />} />
-        <Route path="*" element={<Navigate to="/sales" replace />} />
-      </Routes>
-    </BrowserRouter>
+    <SettingsProvider>
+      <BrowserRouter>
+        <Routes>
+          <Route path="/" element={<Navigate to="/sales" replace />} />
+          <Route path="/sales" element={<SalesPage onLogout={logout} user={user} />} />
+          <Route path="*" element={<Navigate to="/sales" replace />} />
+        </Routes>
+      </BrowserRouter>
+    </SettingsProvider>
   );
 }
 

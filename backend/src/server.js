@@ -8,11 +8,14 @@
 import express from 'express';
 import config from './config.js';
 import apiKeyAuth from './middleware/apiKey.js';
-import { requireSession } from './middleware/session.js';
+import { requireSession, requireRole } from './middleware/session.js';
 import { apiLimiter, freshLimiter, aiLimiter } from './middleware/rateLimit.js';
 import authRouter from './routes/auth.js';
 import salesRouter from './routes/sales.js';
 import aiRouter from './routes/ai.js';
+import targetsRouter from './routes/targets.js';
+import settingsRouter from './routes/settings.js';
+import adminRouter from './routes/admin.js';
 
 const app = express();
 app.set('trust proxy', 1); // อยู่หลัง nginx — ให้ req.ip เป็น IP จริงจาก X-Forwarded-For
@@ -38,6 +41,13 @@ app.use('/api', freshLimiter, requireSession, salesRouter);
 
 // เส้นทาง AI (สรุป/แชต) — จำกัดจำนวนเรียก (กันค่าใช้จ่าย) + ต้องล็อกอินแล้ว
 app.use('/api', aiLimiter, requireSession, aiRouter);
+
+// เส้นทางอ่านเป้ายอดขาย + ตั้งค่าระบบ — ผู้ใช้ที่ล็อกอินทุกคนอ่านได้
+app.use('/api', requireSession, targetsRouter);
+app.use('/api', requireSession, settingsRouter);
+
+// เส้นทาง Admin (เปลี่ยนแหล่งข้อมูล + จัดการผู้ใช้) — เฉพาะ role=admin เท่านั้น
+app.use('/api', requireRole('admin'), adminRouter);
 
 // เส้นทางที่ไม่รู้จัก
 app.use((_req, res) => {

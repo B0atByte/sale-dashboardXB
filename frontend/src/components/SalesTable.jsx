@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useLang } from "../i18n";
 import PlatformBadge from "./PlatformBadge";
 import { formatCurrency, formatNumber, formatDate } from "../utils/format";
-import { exportSalesCsv } from "../utils/data";
+import { exportSalesCsv, gmvOf } from "../utils/data";
 import {
   IconSearch,
   IconDownload,
@@ -152,7 +152,7 @@ export default function SalesTable({ records = [], filtersKey = "" }) {
                     {formatNumber(r.quantity)}
                   </td>
                   <td className="whitespace-nowrap px-4 py-3 text-right font-bold text-slate-800">
-                    {formatCurrency(r.lineTotal)}
+                    {formatCurrency(gmvOf(r))}
                   </td>
                 </tr>
               ))

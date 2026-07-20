@@ -23,6 +23,9 @@ services:
       - PORT=3001
     # No host port mapping on purpose: the API is reachable only from the
     # internal compose network (the frontend nginx proxy talks to backend:3001).
+    # เก็บ users.json / source.json ไว้ใน named volume ให้คงอยู่ข้าม redeploy
+    volumes:
+      - xbloom-data:/app/data
     restart: unless-stopped
     healthcheck:
       # /api/health requires no auth — designed exactly for this check.
@@ -47,3 +50,6 @@ services:
       backend:
         condition: service_healthy
     restart: unless-stopped
+
+volumes:
+  xbloom-data:

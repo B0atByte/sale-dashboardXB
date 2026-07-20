@@ -8,8 +8,9 @@
  * - ถ้าดึงจาก upstream ล้มเหลวแต่มี cache เก่า (stale) อยู่ ให้เสิร์ฟ cache เก่า
  *   พร้อม fromCache: true — ถ้าไม่มี cache เลยจะ throw SheetFetchError (-> 502)
  */
-import config from '../config.js';
 import { parseSheetCsv } from './parser.js';
+import { getSheetUrl } from './source.js';
+import { getSettings } from './settings.js';
 
 /** error เฉพาะสำหรับกรณีดึงชีทไม่สำเร็จและไม่มี cache สำรอง */
 export class SheetFetchError extends Error {
@@ -24,9 +25,15 @@ export class SheetFetchError extends Error {
 let cache = null; // { records: [...], updatedAt: string(ISO), expiresAt: number(epoch ms) }
 let inflight = null; // promise ของการ fetch ที่กำลังทำงานอยู่ (ถ้ามี)
 
+/** ล้าง cache (ใช้ตอนแอดมินเปลี่ยนแหล่งข้อมูล) */
+export function clearCache() {
+  cache = null;
+  inflight = null;
+}
+
 /** ดึง CSV จาก Google Sheets แล้ว parse — อัปเดต cache เมื่อสำเร็จ */
 async function refresh() {
-  const res = await fetch(config.sheetCsvUrl, {
+  const res = await fetch(getSheetUrl(), {
     redirect: 'follow',
     signal: AbortSignal.timeout(20_000), // กันค้างถ้า upstream ไม่ตอบ
   });
@@ -38,7 +45,7 @@ async function refresh() {
   cache = {
     records,
     updatedAt: new Date().toISOString(),
-    expiresAt: Date.now() + config.cacheTtlSeconds * 1000,
+    expiresAt: Date.now() + getSettings().cacheTtlSeconds * 1000,
   };
   return cache;
 }

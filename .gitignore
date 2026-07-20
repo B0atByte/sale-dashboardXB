@@ -7,6 +7,9 @@ dist/
 # Environment files (contain secrets: API_KEY, sheet URL)
 .env
 
+# แหล่งข้อมูลที่แอดมินตั้งเอง (runtime) — ไม่ commit
+backend/data/
+
 # Logs
 *.log
 

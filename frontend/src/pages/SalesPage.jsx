@@ -1,6 +1,8 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useLang } from "../i18n";
+import { useSettings } from "../settings";
 import Sidebar from "../components/Sidebar";
+import TargetCard from "../components/TargetCard";
 import AiInsight from "../components/AiInsight";
 import AiChat from "../components/AiChat";
 import Header from "../components/Header";
@@ -14,40 +16,71 @@ import SalesTable from "../components/SalesTable";
 import ErrorBanner from "../components/ErrorBanner";
 import LoadingSkeleton from "../components/LoadingSkeleton";
 import LoadingBadge from "../components/LoadingBadge";
+import AdminModal from "../components/AdminModal";
 import useSalesData, {
-  usePlatformOptions,
-  useComparisonSummary,
+  useFilterOptions,
+  useComparisons,
 } from "../hooks/useSalesData";
 import { platformDonut, categoryDonut, campaignDonut } from "../utils/data";
 
-const EMPTY_FILTERS = { from: "", to: "", platform: "" };
+const EMPTY_FILTERS = {
+  from: "",
+  to: "",
+  platform: "",
+  category: "",
+  campaign: "",
+  product: "",
+};
 
 /**
- * หน้าแดชบอร์ดยอดขาย (หน้าเดียวของแอป)
- * เลย์เอาต์: Sidebar เมนูช่องทางด้านซ้าย (จอใหญ่) + คอลัมน์เนื้อหาด้านขวา
- * บนจอเล็ก Sidebar ซ่อน แล้วใช้แท็บช่องทางแนวนอนแทน
+ * หน้าแดชบอร์ดยอดขาย
  */
-export default function SalesPage({ onLogout }) {
+export default function SalesPage({ onLogout, user }) {
   const { t } = useLang();
+  const { settings, reloadSettings } = useSettings();
+  const isAdmin = user?.role === "admin";
   const [filters, setFilters] = useState(EMPTY_FILTERS);
+  const [adminOpen, setAdminOpen] = useState(false);
 
   const { records, summary, updatedAt, stale, loading, error, refresh } =
-    useSalesData(filters);
-  const platformOptions = usePlatformOptions();
-  const comparison = useComparisonSummary(filters);
+    useSalesData(filters, settings.refreshIntervalMs);
+  const { platforms, campaigns } = useFilterOptions();
 
-  // ลายเซ็นตัวกรอง — เปลี่ยนเฉพาะเมื่อผู้ใช้แก้ตัวกรอง (บอกตารางให้รีเซ็ตหน้า)
-  const filtersKey = `${filters.from}|${filters.to}|${filters.platform}`;
+  // ช่วงวันที่ของข้อมูลจริง (ใช้เทียบเมื่อผู้ใช้ไม่ได้เลือกช่วงเอง)
+  const dateSpan = useMemo(() => {
+    const ds = records.map((r) => r.date).filter(Boolean).sort();
+    return ds.length ? { from: ds[0], to: ds[ds.length - 1] } : null;
+  }, [records]);
+  const comparisons = useComparisons(filters, dateSpan);
+
+  // เป้ายอดขายรายเดือน — เดือนที่ใช้เทียบมาจากช่วงวันที่ที่เลือก (ถ้าไม่เลือก ใช้เดือนล่าสุดของข้อมูล)
+  const [targets, setTargets] = useState({});
+  const fetchTargets = useCallback(() => {
+    fetch("/api/targets", { credentials: "same-origin" })
+      .then((r) => r.json())
+      .then((d) => setTargets(d.targets || {}))
+      .catch(() => {});
+  }, []);
+  useEffect(() => {
+    fetchTargets();
+  }, [fetchTargets]);
+  const activeMonth = filters.from
+    ? filters.from.slice(0, 7)
+    : dateSpan?.to
+      ? dateSpan.to.slice(0, 7)
+      : "";
+  const targetGmv = targets[activeMonth] || 0;
+
+  const filtersKey = `${filters.from}|${filters.to}|${filters.platform}|${filters.category}|${filters.campaign}|${filters.product}`;
   const isOverview = !filters.platform;
   const isFirstLoad = loading && !summary;
-  // ป้าย "กำลังดึงข้อมูล" โชว์ตอนผู้ใช้สั่งโหลด (มีข้อมูลเดิมอยู่แล้ว) — บอกว่ากำลังดึงช่องทางไหน
   const activeLabel = filters.platform || t("nav.overview");
 
   const setPlatform = (platform) => setFilters((f) => ({ ...f, platform }));
-  const applyDates = ({ from, to }) => setFilters((f) => ({ ...f, from, to }));
+  const onFilterChange = (patch) => setFilters((f) => ({ ...f, ...patch }));
   const clearAll = () => setFilters(EMPTY_FILTERS);
 
-  // เช็คว่า backend เปิดใช้ AI ไหม (มี API key) — ถ้าไม่เปิดจะไม่แสดง UI ของ AI
+  // เช็คว่า backend เปิดใช้ AI ไหม
   const [aiEnabled, setAiEnabled] = useState(false);
   useEffect(() => {
     const controller = new AbortController();
@@ -60,13 +93,8 @@ export default function SalesPage({ onLogout }) {
 
   return (
     <div className="min-h-screen bg-slate-50">
-      <Sidebar
-        platforms={platformOptions}
-        active={filters.platform}
-        onSelect={setPlatform}
-      />
+      <Sidebar platforms={platforms} active={filters.platform} onSelect={setPlatform} />
 
-      {/* คอลัมน์เนื้อหา — เว้นซ้าย 16rem ให้ Sidebar บนจอใหญ่ */}
       <div className="lg:pl-64">
         <Header
           updatedAt={updatedAt}
@@ -74,27 +102,18 @@ export default function SalesPage({ onLogout }) {
           loading={loading}
           onRefresh={refresh}
           onLogout={onLogout}
+          onOpenAdmin={isAdmin ? () => setAdminOpen(true) : undefined}
+          user={user}
         />
 
-        {/* ป้ายลอย "กำลังดึงข้อมูล: <ช่องทาง>" — เฉพาะตอนผู้ใช้สั่งโหลด ไม่ใช่ auto-refresh */}
         {loading && summary && <LoadingBadge label={activeLabel} />}
 
         <main className="mx-auto max-w-7xl space-y-6 px-4 py-6 sm:px-6">
-          {/* แท็บช่องทางแนวนอน เฉพาะจอเล็ก (จอใหญ่ใช้ Sidebar) */}
           <div className="lg:hidden">
-            <PlatformTabs
-              platforms={platformOptions}
-              active={filters.platform}
-              onSelect={setPlatform}
-            />
+            <PlatformTabs platforms={platforms} active={filters.platform} onSelect={setPlatform} />
           </div>
 
-          <FilterBar
-            from={filters.from}
-            to={filters.to}
-            onApply={applyDates}
-            onClear={clearAll}
-          />
+          <FilterBar filters={filters} campaigns={campaigns} onChange={onFilterChange} onClear={clearAll} />
 
           {error && <ErrorBanner onRetry={refresh} />}
 
@@ -102,48 +121,30 @@ export default function SalesPage({ onLogout }) {
             <LoadingSkeleton />
           ) : (
             summary && (
-              /* ระหว่างรีเฟรช ให้เนื้อหาเดิมจางลงเล็กน้อยแทนการกระพริบเป็น skeleton */
-              <div
-                className={`space-y-6 transition-opacity ${loading ? "opacity-60" : "opacity-100"}`}
-              >
-                <KpiCards
-                  kpi={summary.kpi}
-                  records={records}
-                  comparison={comparison}
+              <div className={`space-y-6 transition-opacity ${loading ? "opacity-60" : "opacity-100"}`}>
+                <KpiCards kpi={summary.kpi} records={records} comparisons={comparisons} />
+
+                <TargetCard
+                  actualGmv={summary.kpi.totalGmv}
+                  targetGmv={targetGmv}
+                  month={activeMonth}
                 />
 
-                {/* การ์ด AI สรุปยอดขาย (ตามตัวกรองปัจจุบัน) */}
                 {aiEnabled && (
-                  <AiInsight
-                    from={filters.from}
-                    to={filters.to}
-                    platform={filters.platform}
-                  />
+                  <AiInsight from={filters.from} to={filters.to} platform={filters.platform} />
                 )}
 
-                {/* แถวกราฟโดนัท 2 คอลัมน์ */}
+                {/* โดนัท 2 คอลัมน์ */}
                 <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
                   {isOverview ? (
-                    <DonutChart
-                      title={t("chart.platformShare")}
-                      subtitle={t("chart.platformShareSub")}
-                      data={platformDonut(summary.byPlatform, t)}
-                    />
+                    <DonutChart title={t("chart.platformShare")} subtitle={t("chart.platformShareSub")} data={platformDonut(summary.byPlatform, t)} />
                   ) : (
-                    <DonutChart
-                      title={t("chart.campaignShare")}
-                      subtitle={t("chart.campaignShareSub")}
-                      data={campaignDonut(records, t)}
-                    />
+                    <DonutChart title={t("chart.campaignShare")} subtitle={t("chart.campaignShareSub")} data={campaignDonut(records, t)} />
                   )}
-                  <DonutChart
-                    title={t("chart.categoryShare")}
-                    subtitle={t("chart.categoryShareSub")}
-                    data={categoryDonut(records, t)}
-                  />
+                  <DonutChart title={t("chart.categoryShare")} subtitle={t("chart.categoryShareSub")} data={categoryDonut(records, t)} />
                 </div>
 
-                {/* แนวโน้มรายวัน (กว้าง 2/3) + สินค้าขายดี (1/3) */}
+                {/* แนวโน้ม + Top 5 */}
                 <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
                   <div className="lg:col-span-2">
                     <TrendChart records={records} />
@@ -157,16 +158,22 @@ export default function SalesPage({ onLogout }) {
           )}
         </main>
 
-        {/* แชต AI ลอยมุมขวาล่าง */}
         {aiEnabled && <AiChat />}
 
-        {/* ท้ายหน้า เฉพาะจอเล็ก (จอใหญ่มีลิขสิทธิ์อยู่ท้าย Sidebar แล้ว) */}
         <footer className="py-6 lg:hidden">
-          <p className="text-center text-[11px] font-bold text-slate-400">
-            {t("footer")}
-          </p>
+          <p className="text-center text-[11px] font-bold text-slate-400">{settings.brandFooter}</p>
         </footer>
       </div>
+
+      <AdminModal
+        open={adminOpen}
+        onClose={() => setAdminOpen(false)}
+        onChanged={() => {
+          refresh();
+          fetchTargets();
+          reloadSettings();
+        }}
+      />
     </div>
   );
 }

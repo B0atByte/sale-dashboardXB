@@ -8,6 +8,11 @@
 
 const OTHER_COLOR = "#64748b"; // slate-500 — ช่องทาง/กลุ่มที่ไม่รู้จัก
 
+/** ยอดขายของแถว — ใช้ฟิลด์ gmv ที่ backend ใส่มา (ตามตั้งค่า) ไม่งั้น fallback ราคาขาย */
+export function gmvOf(r) {
+  return r.gmv ?? r.lineTotal ?? 0;
+}
+
 // สีประจำช่องทาง (คีย์เป็นชื่อ trimmed + lowercase)
 const PLATFORM_COLOR_MAP = {
   shopee: "#ea580c",
@@ -86,7 +91,7 @@ export function categoryDonut(records = [], t = (k) => k) {
   const totals = new Map();
   for (const r of records) {
     const k = bucketKeyOf(r);
-    totals.set(k, (totals.get(k) || 0) + (r.lineTotal || 0));
+    totals.set(k, (totals.get(k) || 0) + gmvOf(r));
   }
   return CATEGORY_BUCKETS.map((b) => ({
     name: t(`cat.${b.key}`),
@@ -100,7 +105,7 @@ export function campaignDonut(records = [], t = (k) => k) {
   const totals = new Map();
   for (const r of records) {
     const c = String(r.campaign || "").trim() || t("common.na");
-    totals.set(c, (totals.get(c) || 0) + (r.lineTotal || 0));
+    totals.set(c, (totals.get(c) || 0) + gmvOf(r));
   }
   const names = [...totals.keys()].sort((a, b) => a.localeCompare(b));
   const colorFor = Object.fromEntries(
@@ -128,7 +133,7 @@ export function dailySeries(records = []) {
     const cur =
       byDate.get(r.date) ||
       { date: r.date, gmv: 0, units: 0, orderSet: new Set() };
-    cur.gmv += r.lineTotal || 0;
+    cur.gmv += gmvOf(r);
     cur.units += r.quantity || 0;
     if (r.orderNo) cur.orderSet.add(r.orderNo);
     byDate.set(r.date, cur);
@@ -168,6 +173,41 @@ function iso(d) {
   const m = String(d.getMonth() + 1).padStart(2, "0");
   const day = String(d.getDate()).padStart(2, "0");
   return `${y}-${m}-${day}`;
+}
+
+/** เลื่อนช่วง [from,to] ย้อนหลัง 1 สัปดาห์/เดือน/ปี (คงความยาวช่วงไว้) */
+export function shiftRange(from, to, kind) {
+  if (!from || !to) return null;
+  const shift = (dateStr) => {
+    const d = new Date(`${dateStr}T00:00:00`);
+    if (kind === "week") d.setDate(d.getDate() - 7);
+    else if (kind === "month") d.setDate(d.getDate() - 30);
+    else if (kind === "year") d.setFullYear(d.getFullYear() - 1);
+    return iso(d);
+  };
+  return { from: shift(from), to: shift(to) };
+}
+
+/**
+ * รวมข้อมูลสำหรับกราฟแนวโน้ม ตามความละเอียด (day/month/year) และเมตริก (gmv/units)
+ * คืน [{ key, value }] เรียงตามเวลา
+ */
+export function aggregateTrend(records = [], granularity = "day", metric = "gmv") {
+  const map = new Map();
+  for (const r of records) {
+    if (!r.date) continue;
+    const key =
+      granularity === "year"
+        ? r.date.slice(0, 4)
+        : granularity === "month"
+          ? r.date.slice(0, 7)
+          : r.date;
+    const val = metric === "units" ? r.quantity || 0 : gmvOf(r);
+    map.set(key, (map.get(key) || 0) + val);
+  }
+  return [...map.entries()]
+    .map(([key, value]) => ({ key, value }))
+    .sort((a, b) => a.key.localeCompare(b.key));
 }
 
 /** ส่งออก records เป็น CSV (มี BOM, ครอบค่าที่มี comma/quote/ขึ้นบรรทัด) */

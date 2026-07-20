@@ -1,14 +1,16 @@
 import { useLang } from "../i18n";
+import { useSettings } from "../settings";
 import { formatTime } from "../utils/format";
-import { IconRefresh, IconLogout } from "./Icons";
+import { IconRefresh, IconLogout, IconSettings } from "./Icons";
 import DemoBadge from "./DemoBadge";
 
 /**
  * แถบหัวเรื่องด้านบนของคอลัมน์เนื้อหา: ปุ่มสลับภาษา + เวลาอัปเดต + ปุ่มรีเฟรช
  * แบรนด์แสดงเฉพาะจอเล็ก (จอใหญ่ย้ายไปอยู่ใน Sidebar)
  */
-export default function Header({ updatedAt, stale, loading, onRefresh, onLogout }) {
+export default function Header({ updatedAt, stale, loading, onRefresh, onLogout, onOpenAdmin, user }) {
   const { t, lang, setLang } = useLang();
+  const { settings } = useSettings();
 
   return (
     <header className="sticky top-0 z-20 border-b border-slate-100 bg-white/90 backdrop-blur">
@@ -23,9 +25,9 @@ export default function Header({ updatedAt, stale, loading, onRefresh, onLogout 
           <div>
             <div className="flex items-center gap-2">
               <h1 className="text-lg font-bold tracking-tighter text-slate-800">
-                xBloom Sale Dashboard
+                {settings.brandTitle}
               </h1>
-              <DemoBadge />
+              {settings.showDemo && <DemoBadge />}
             </div>
             <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">
               {t("brand.subtitle")}
@@ -52,6 +54,21 @@ export default function Header({ updatedAt, stale, loading, onRefresh, onLogout 
               {t("header.autoRefresh")}
             </p>
           </div>
+
+          {/* ผู้ใช้ที่ล็อกอิน + สิทธิ์ */}
+          {user && (
+            <div className="flex items-center gap-2 rounded-xl bg-slate-50 px-3 py-1.5">
+              <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-slate-800 text-[11px] font-black uppercase text-white">
+                {user.username.slice(0, 1)}
+              </span>
+              <div className="leading-tight">
+                <p className="text-xs font-bold text-slate-700">{user.username}</p>
+                <p className="text-[9px] font-black uppercase tracking-wider text-indigo-500">
+                  {t(`role.${user.role}`)}
+                </p>
+              </div>
+            </div>
+          )}
 
           {/* ปุ่มสลับภาษา TH / EN */}
           <div className="flex items-center rounded-xl border border-slate-100 bg-slate-50 p-0.5">
@@ -80,6 +97,17 @@ export default function Header({ updatedAt, stale, loading, onRefresh, onLogout 
           >
             <IconRefresh className={`h-5 w-5 ${loading ? "animate-spin" : ""}`} />
           </button>
+
+          {onOpenAdmin && (
+            <button
+              type="button"
+              onClick={onOpenAdmin}
+              title={t("admin.open")}
+              className="flex h-11 w-11 items-center justify-center rounded-xl border border-slate-100 bg-slate-50 text-slate-500 transition hover:bg-white hover:text-slate-800 hover:shadow-sm active:scale-95"
+            >
+              <IconSettings className="h-5 w-5" />
+            </button>
+          )}
 
           {onLogout && (
             <button
