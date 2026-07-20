@@ -30,3 +30,14 @@ export const freshLimiter = rateLimit({
   message: { error: 'rate_limited_fresh' },
   skip: (req) => !(req.query.fresh === '1' || req.query.fresh === 'true'),
 });
+
+/**
+ * จำกัดการเรียก AI: 20 ครั้ง/นาที ต่อ IP (เพราะเรียก AI มีค่าใช้จ่ายต่อครั้ง)
+ */
+export const aiLimiter = rateLimit({
+  windowMs: 60_000,
+  limit: 20,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'rate_limited_ai' },
+});

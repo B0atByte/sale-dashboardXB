@@ -9,9 +9,10 @@ import express from 'express';
 import config from './config.js';
 import apiKeyAuth from './middleware/apiKey.js';
 import { requireSession } from './middleware/session.js';
-import { apiLimiter, freshLimiter } from './middleware/rateLimit.js';
+import { apiLimiter, freshLimiter, aiLimiter } from './middleware/rateLimit.js';
 import authRouter from './routes/auth.js';
 import salesRouter from './routes/sales.js';
+import aiRouter from './routes/ai.js';
 
 const app = express();
 app.set('trust proxy', 1); // อยู่หลัง nginx — ให้ req.ip เป็น IP จริงจาก X-Forwarded-For
@@ -34,6 +35,9 @@ app.use('/api', authRouter);
 
 // เส้นทางข้อมูล — จำกัดเข้มถ้าขอข้อมูลสด (?fresh=1) + ต้องล็อกอินแล้ว
 app.use('/api', freshLimiter, requireSession, salesRouter);
+
+// เส้นทาง AI (สรุป/แชต) — จำกัดจำนวนเรียก (กันค่าใช้จ่าย) + ต้องล็อกอินแล้ว
+app.use('/api', aiLimiter, requireSession, aiRouter);
 
 // เส้นทางที่ไม่รู้จัก
 app.use((_req, res) => {

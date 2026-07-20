@@ -62,6 +62,10 @@ const config = {
   cacheTtlSeconds: Number(process.env.CACHE_TTL_SECONDS) || 300,
   /** รหัสเข้าระบบ — ถ้าเว้นว่าง (undefined) = ไม่ต้องล็อกอิน */
   accessCode: process.env.ACCESS_CODE || '',
+  /** AI (DeepSeek / OpenAI-compatible) — ถ้าไม่มี key = ปิดฟีเจอร์ AI */
+  aiApiKey: process.env.AI_API_KEY || '',
+  aiBaseUrl: process.env.AI_BASE_URL || 'https://api.deepseek.com',
+  aiModel: process.env.AI_MODEL || 'deepseek-chat',
 };
 
 export default config;

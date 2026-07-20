@@ -84,3 +84,29 @@ export function IconLogout({ className = "" }) {
     </svg>
   );
 }
+
+export function IconSparkles({ className = "" }) {
+  return (
+    <svg className={className} {...BASE}>
+      <path d="M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9z" />
+      <path d="M18 15l.7 1.8 1.8.7-1.8.7-.7 1.8-.7-1.8-1.8-.7 1.8-.7z" />
+    </svg>
+  );
+}
+
+export function IconSend({ className = "" }) {
+  return (
+    <svg className={className} {...BASE}>
+      <path d="M22 2 11 13" />
+      <path d="M22 2 15 22l-4-9-9-4z" />
+    </svg>
+  );
+}
+
+export function IconX({ className = "" }) {
+  return (
+    <svg className={className} {...BASE}>
+      <path d="M18 6 6 18M6 6l12 12" />
+    </svg>
+  );
+}

@@ -1,6 +1,8 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useLang } from "../i18n";
 import Sidebar from "../components/Sidebar";
+import AiInsight from "../components/AiInsight";
+import AiChat from "../components/AiChat";
 import Header from "../components/Header";
 import PlatformTabs from "../components/PlatformTabs";
 import FilterBar from "../components/FilterBar";
@@ -44,6 +46,17 @@ export default function SalesPage({ onLogout }) {
   const setPlatform = (platform) => setFilters((f) => ({ ...f, platform }));
   const applyDates = ({ from, to }) => setFilters((f) => ({ ...f, from, to }));
   const clearAll = () => setFilters(EMPTY_FILTERS);
+
+  // เช็คว่า backend เปิดใช้ AI ไหม (มี API key) — ถ้าไม่เปิดจะไม่แสดง UI ของ AI
+  const [aiEnabled, setAiEnabled] = useState(false);
+  useEffect(() => {
+    const controller = new AbortController();
+    fetch("/api/ai/status", { credentials: "same-origin", signal: controller.signal })
+      .then((r) => (r.ok ? r.json() : { enabled: false }))
+      .then((d) => setAiEnabled(Boolean(d.enabled)))
+      .catch(() => {});
+    return () => controller.abort();
+  }, []);
 
   return (
     <div className="min-h-screen bg-slate-50">
@@ -99,6 +112,15 @@ export default function SalesPage({ onLogout }) {
                   comparison={comparison}
                 />
 
+                {/* การ์ด AI สรุปยอดขาย (ตามตัวกรองปัจจุบัน) */}
+                {aiEnabled && (
+                  <AiInsight
+                    from={filters.from}
+                    to={filters.to}
+                    platform={filters.platform}
+                  />
+                )}
+
                 {/* แถวกราฟโดนัท 2 คอลัมน์ */}
                 <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
                   {isOverview ? (
@@ -134,6 +156,9 @@ export default function SalesPage({ onLogout }) {
             )
           )}
         </main>
+
+        {/* แชต AI ลอยมุมขวาล่าง */}
+        {aiEnabled && <AiChat />}
 
         {/* ท้ายหน้า เฉพาะจอเล็ก (จอใหญ่มีลิขสิทธิ์อยู่ท้าย Sidebar แล้ว) */}
         <footer className="py-6 lg:hidden">
