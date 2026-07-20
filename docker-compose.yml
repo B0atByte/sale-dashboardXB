@@ -1,0 +1,49 @@
+# xBloom Sales Dashboard — production stack
+#
+# Topology:
+#   browser :8081 -> frontend (nginx: serves SPA + proxies /api/ with x-api-key)
+#                    (8081 because :8080/:5173 on this machine are taken by the
+#                     bhlogistics stack)
+#                 -> backend  (Express :3001, internal network only)
+#                 -> Google Sheets CSV (upstream, cached in backend)
+#
+# Configuration:
+#   - ./backend/.env        (SHEET_CSV_URL, API_KEY, CACHE_TTL_SECONDS) -> backend only
+#   - ./.env (project root) (API_KEY, must match backend/.env)          -> compose
+#     interpolation for the frontend service below
+
+services:
+  backend:
+    build: ./backend
+    env_file: ./backend/.env
+    environment:
+      # Pin the in-container port to 3001 so it always matches the healthcheck
+      # below and the nginx proxy target (environment overrides env_file).
+      # PORT in backend/.env therefore only affects local dev runs.
+      - PORT=3001
+    # No host port mapping on purpose: the API is reachable only from the
+    # internal compose network (the frontend nginx proxy talks to backend:3001).
+    restart: unless-stopped
+    healthcheck:
+      # /api/health requires no auth — designed exactly for this check.
+      # busybox wget is available in node:24-alpine.
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:3001/api/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+  frontend:
+    build: ./frontend
+    ports:
+      - "8081:80"
+    # SECURITY: nginx only needs API_KEY (injected into the x-api-key header
+    # when proxying /api/ to http://backend:3001). Do NOT mount backend/.env
+    # here — that would leak SHEET_CSV_URL into the internet-facing container.
+    # ${API_KEY} is interpolated by compose from ./.env at the project root.
+    environment:
+      - API_KEY=${API_KEY}
+    depends_on:
+      backend:
+        condition: service_healthy
+    restart: unless-stopped

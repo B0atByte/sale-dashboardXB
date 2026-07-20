@@ -1,0 +1,15 @@
+# dependencies
+node_modules/
+
+# production build
+dist/
+
+# ความลับ — ห้าม commit คีย์ API เด็ดขาด
+.env
+.env.local
+.env.*.local
+
+# logs / misc
+npm-debug.log*
+*.log
+.DS_Store

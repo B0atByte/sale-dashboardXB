@@ -1,0 +1,50 @@
+# เทมเพลตนี้ถูก envsubst โดย entrypoint ของ nginx image ตอนสตาร์ต
+# (เฉพาะตัวแปรที่มีอยู่ใน environment เท่านั้นที่ถูกแทนค่า — ${API_KEY})
+# ตัวแปร runtime ของ nginx เช่น $uri, $host ไม่ถูกแตะต้อง
+server {
+    listen 80;
+    server_name _;
+
+    root /usr/share/nginx/html;
+    index index.html;
+
+    # ---- Security headers (ใส่ทุก response รวมถึง error) ----
+    add_header X-Frame-Options "DENY" always;                # กันฝัง iframe (clickjacking)
+    add_header X-Content-Type-Options "nosniff" always;      # กันเบราว์เซอร์เดา MIME type
+    add_header Referrer-Policy "no-referrer" always;         # ไม่ส่ง referrer ออกไปเว็บอื่น
+    add_header Permissions-Policy "geolocation=(), microphone=(), camera=()" always;
+    # CSP: โหลดได้เฉพาะจากโดเมนตัวเอง (ฟอนต์/รูป/สคริปต์/สไตล์/เชื่อมต่อ API)
+    add_header Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'" always;
+    # HSTS: เปิดบรรทัดนี้เมื่อ deploy ผ่าน HTTPS แล้วเท่านั้น
+    # add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
+
+    # gzip เบื้องต้นสำหรับไฟล์ static
+    gzip on;
+    gzip_types text/css application/javascript application/json image/svg+xml;
+
+    # SECURITY: proxy /api/ ไปยัง backend พร้อมแนบ x-api-key ฝั่งเซิร์ฟเวอร์
+    # เบราว์เซอร์ไม่เคยเห็นหรือถือคีย์นี้เลย (location นี้ไม่มี add_header จึงรับ header ด้านบนสืบทอดมา)
+    location /api/ {
+        proxy_pass http://backend:3001;
+        proxy_http_version 1.1;
+        proxy_set_header x-api-key "${API_KEY}";
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    }
+
+    # แคชไฟล์ asset ที่มี hash ในชื่อไฟล์ได้ยาว ๆ
+    # (location นี้มี add_header เอง เลยต้องใส่ nosniff ซ้ำ เพราะ nginx ไม่สืบทอด add_header
+    #  ให้ location ที่ประกาศ add_header ของตัวเอง)
+    location /assets/ {
+        expires 30d;
+        add_header Cache-Control "public, immutable";
+        add_header X-Content-Type-Options "nosniff" always;
+        try_files $uri =404;
+    }
+
+    # SPA fallback: เส้นทางที่ไม่ใช่ไฟล์จริงให้ส่ง index.html (react-router จัดการต่อ)
+    location / {
+        try_files $uri $uri/ /index.html;
+    }
+}

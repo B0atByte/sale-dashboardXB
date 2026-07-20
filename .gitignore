@@ -1,0 +1,14 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+
+# Environment files (contain secrets: API_KEY, sheet URL)
+.env
+
+# Logs
+*.log
+
+# OS junk
+.DS_Store
