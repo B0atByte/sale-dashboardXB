@@ -51,6 +51,20 @@ export function clearSession(req, res) {
   res.clearCookie(COOKIE_NAME, { path: '/' });
 }
 
+/** ยกเลิก session ทั้งหมดของผู้ใช้คนหนึ่ง (เรียกตอนลบผู้ใช้ เพื่อไม่ให้ยังใช้งานได้ถึง 12 ชม.) */
+export function revokeUserSessions(username) {
+  const uname = String(username || '').toLowerCase();
+  if (!uname) return 0;
+  let n = 0;
+  for (const [token, s] of sessions) {
+    if (String(s.username || '').toLowerCase() === uname) {
+      sessions.delete(token);
+      n += 1;
+    }
+  }
+  return n;
+}
+
 /** คืนข้อมูลผู้ใช้จาก session (หรือ null) */
 export function getUser(req) {
   const token = readCookie(req, COOKIE_NAME);

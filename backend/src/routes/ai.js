@@ -96,6 +96,31 @@ router.get('/ai/status', (_req, res) => {
 const insightCache = new Map();
 const INSIGHT_TTL_MS = 10 * 60 * 1000;
 
+// กวาด entry ที่หมดอายุออกเป็นระยะ (กัน insightCache โตไม่จำกัด → memory leak)
+const insightSweep = setInterval(() => {
+  const now = Date.now();
+  for (const [k, v] of insightCache) {
+    if (now - v.at > INSIGHT_TTL_MS) insightCache.delete(k);
+  }
+}, 10 * 60 * 1000);
+insightSweep.unref?.();
+
+// เพดานเรียก AI ต่อวัน (กันบิล DeepSeek พุ่งจากการใช้ในทางที่ผิด) — ปรับผ่าน env AI_DAILY_LIMIT
+const AI_DAILY_LIMIT = Number(process.env.AI_DAILY_LIMIT) || 500;
+let aiCallDay = '';
+let aiCallCount = 0;
+/** นับ 1 ครั้งที่เรียก AI จริง; คืน true ถ้าเกินเพดานของวันนั้น (รีเซ็ตทุกวัน) */
+function aiBudgetExceeded() {
+  const today = new Date().toISOString().slice(0, 10);
+  if (today !== aiCallDay) {
+    aiCallDay = today;
+    aiCallCount = 0;
+  }
+  if (aiCallCount >= AI_DAILY_LIMIT) return true;
+  aiCallCount += 1;
+  return false;
+}
+
 router.get('/insight', async (req, res) => {
   try {
     const { records } = await getSalesData();
@@ -108,6 +133,7 @@ router.get('/insight', async (req, res) => {
     if (cached && Date.now() - cached.at < INSIGHT_TTL_MS) {
       return res.json({ insight: cached.text, cached: true });
     }
+    if (aiBudgetExceeded()) return res.status(429).json({ error: 'ai_daily_limit' });
 
     const text = await chatCompletion(
       [
@@ -130,6 +156,7 @@ router.post('/chat', async (req, res) => {
   try {
     const question = String(req.body?.question || '').trim().slice(0, 500);
     if (!question) return res.status(400).json({ error: 'empty_question' });
+    if (aiBudgetExceeded()) return res.status(429).json({ error: 'ai_daily_limit' });
 
     // แชตใช้ข้อมูล "ทั้งหมด" เป็น context เพื่อตอบได้ทุกคำถาม
     const { records } = await getSalesData();

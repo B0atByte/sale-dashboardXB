@@ -22,7 +22,10 @@ export function setTarget(month, amount) {
   if (!/^\d{4}-\d{2}$/.test(String(month))) return { error: 'invalid_month' };
   const amt = Number(amount);
   if (!Number.isFinite(amt) || amt < 0) return { error: 'invalid_amount' };
-  const targets = getAllTargets();
+  // อ่านแบบให้ error เด้ง (store.read throw ถ้าไฟล์เสีย) เพื่อ abort การเขียน —
+  // ไม่ให้เขียนทับด้วย {} ตอนไฟล์เสียชั่วคราว (กันเป้าเดือนอื่นหายทั้งหมด)
+  const current = store.read();
+  const targets = current && typeof current === 'object' ? current : {};
   targets[month] = amt;
   store.write(targets);
   return { ok: true, targets };

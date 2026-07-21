@@ -29,6 +29,11 @@ services:
     mem_reservation: 128m
     cpus: 1.0
     pids_limit: 256
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
     # No host port mapping on purpose: the API is reachable only from the
     # internal compose network (the frontend nginx proxy talks to backend:3001).
     # เก็บ users.json / source.json ไว้ใน named volume ให้คงอยู่ข้าม redeploy
@@ -61,6 +66,11 @@ services:
     mem_limit: 128m
     cpus: 0.5
     pids_limit: 128
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
     healthcheck:
       # Use 127.0.0.1 (not localhost): nginx listens on IPv4 0.0.0.0:80, but
       # "localhost" resolves to IPv6 ::1 first inside the container → refused.

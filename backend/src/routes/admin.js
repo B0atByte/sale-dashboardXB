@@ -15,6 +15,7 @@ import { listUsers, addUser, removeUser } from '../services/users.js';
 import { getAllTargets, setTarget } from '../services/targets.js';
 import { getSettings, setSettings } from '../services/settings.js';
 import { asyncHandler } from '../middleware/asyncHandler.js';
+import { revokeUserSessions } from '../middleware/session.js';
 
 const router = Router();
 
@@ -61,6 +62,7 @@ router.post('/admin/users', (req, res) => {
 router.delete('/admin/users/:username', (req, res) => {
   const r = removeUser(req.params.username);
   if (r.error) return res.status(400).json(r);
+  revokeUserSessions(req.params.username); // เตะ session ที่ยังค้างของผู้ใช้ที่ถูกลบทันที
   res.json({ ok: true, users: listUsers() });
 });
 

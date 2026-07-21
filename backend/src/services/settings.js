@@ -26,7 +26,10 @@ export function getSettings() {
 
 /** อัปเดตเฉพาะฟิลด์ที่ส่งมา (validate ก่อน) */
 export function setSettings(patch = {}) {
-  const next = getSettings();
+  // อ่านค่าปัจจุบันแบบให้ error เด้ง (store.read throw ถ้าไฟล์เสีย) เพื่อ abort การเขียน —
+  // ไม่ให้เขียนทับด้วยค่า default ตอนไฟล์เสียชั่วคราว (กันตั้งค่าหายทั้งหมด)
+  const current = store.read();
+  const next = { ...DEFAULTS, ...(current && typeof current === 'object' ? current : {}) };
 
   if (patch.gmvField === 'lineTotal' || patch.gmvField === 'netRevenue') {
     next.gmvField = patch.gmvField;

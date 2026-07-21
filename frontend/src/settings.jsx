@@ -8,8 +8,8 @@ import {
 
 const DEFAULTS = {
   gmvField: "lineTotal",
-  cacheTtlSeconds: 15,
-  refreshIntervalMs: 20000,
+  cacheTtlSeconds: 60,
+  refreshIntervalMs: 60000,
   brandTitle: "xBloom Sale Dashboard",
   brandFooter: "© 2026 xBloomXCasalapin",
   showDemo: true,
