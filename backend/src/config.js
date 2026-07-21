@@ -66,6 +66,13 @@ const config = {
   aiApiKey: process.env.AI_API_KEY || '',
   aiBaseUrl: process.env.AI_BASE_URL || 'https://api.deepseek.com',
   aiModel: process.env.AI_MODEL || 'deepseek-chat',
+  /**
+   * pepper สำหรับ hash PIN — แยกจาก API_KEY เพื่อให้ rotate API_KEY ได้โดยไม่ทำให้
+   * PIN ทุกคนใช้ไม่ได้ (ถ้าไม่ตั้ง PIN_PEPPER จะ fallback เป็น API_KEY เพื่อความเข้ากันได้)
+   */
+  pinPepper: process.env.PIN_PEPPER || process.env.API_KEY,
+  /** ตั้ง cookie ด้วย Secure flag — เปิดเป็น true เมื่อ deploy ผ่าน HTTPS แล้วเท่านั้น */
+  cookieSecure: String(process.env.COOKIE_SECURE || '').toLowerCase() === 'true',
 };
 
 export default config;

@@ -1,13 +1,9 @@
 /**
  * settings.js — ตั้งค่าระบบที่ปรับได้ตอนรัน (เก็บใน data/settings.json)
  */
-import fs from 'node:fs';
-import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { createStore } from './jsonStore.js';
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const DATA_DIR = path.resolve(__dirname, '..', '..', 'data');
-const FILE = path.join(DATA_DIR, 'settings.json');
+const store = createStore('settings.json', {});
 
 const DEFAULTS = {
   gmvField: 'lineTotal', // 'lineTotal' (ราคาขาย) | 'netRevenue' (รายรับสุทธิ)
@@ -20,9 +16,10 @@ const DEFAULTS = {
 
 export function getSettings() {
   try {
-    const obj = JSON.parse(fs.readFileSync(FILE, 'utf8'));
+    const obj = store.read();
     return { ...DEFAULTS, ...(obj && typeof obj === 'object' ? obj : {}) };
-  } catch {
+  } catch (err) {
+    console.error(`[settings] settings.json มีปัญหา ใช้ค่าเริ่มต้นชั่วคราว: ${err.message}`);
     return { ...DEFAULTS };
   }
 }
@@ -50,7 +47,6 @@ export function setSettings(patch = {}) {
     next.showDemo = patch.showDemo;
   }
 
-  fs.mkdirSync(DATA_DIR, { recursive: true });
-  fs.writeFileSync(FILE, JSON.stringify(next, null, 2), 'utf8');
+  store.write(next);
   return next;
 }

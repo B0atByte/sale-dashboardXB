@@ -21,6 +21,14 @@ services:
       # below and the nginx proxy target (environment overrides env_file).
       # PORT in backend/.env therefore only affects local dev runs.
       - PORT=3001
+      # Cap V8 heap below mem_limit so Node GCs instead of the container OOM-killing.
+      - NODE_OPTIONS=--max-old-space-size=384
+    # Resource ceilings: the backend holds the whole sheet dataset + session maps
+    # in memory; without limits an unbounded process could OOM-kill the host.
+    mem_limit: 512m
+    mem_reservation: 128m
+    cpus: 1.0
+    pids_limit: 256
     # No host port mapping on purpose: the API is reachable only from the
     # internal compose network (the frontend nginx proxy talks to backend:3001).
     # เก็บ users.json / source.json ไว้ใน named volume ให้คงอยู่ข้าม redeploy
@@ -50,6 +58,17 @@ services:
       backend:
         condition: service_healthy
     restart: unless-stopped
+    mem_limit: 128m
+    cpus: 0.5
+    pids_limit: 128
+    healthcheck:
+      # Use 127.0.0.1 (not localhost): nginx listens on IPv4 0.0.0.0:80, but
+      # "localhost" resolves to IPv6 ::1 first inside the container → refused.
+      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:80/"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
 
 volumes:
   xbloom-data:

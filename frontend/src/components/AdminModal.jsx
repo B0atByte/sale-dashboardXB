@@ -188,7 +188,7 @@ export default function AdminModal({ open, onClose, onChanged }) {
   const label = "mb-1 block text-[10px] font-black uppercase tracking-widest text-slate-400";
   const heading = "mb-3 text-[11px] font-black uppercase tracking-widest text-slate-400";
   const saveBtn = "rounded-xl bg-slate-800 px-5 py-2.5 text-xs font-black uppercase tracking-widest text-white transition hover:bg-slate-900 active:scale-95 disabled:opacity-40";
-  const canAddUser = nu.username.trim().length >= 2 && nu.pin.length >= 4 && !uBusy;
+  const canAddUser = nu.username.trim().length >= 2 && nu.pin.length >= 6 && !uBusy;
 
   const TABS = [
     { k: "general", label: t("settings.tabGeneral") },
@@ -347,7 +347,7 @@ export default function AdminModal({ open, onClose, onChanged }) {
             </div>
             <div className="mt-3 flex flex-wrap items-center gap-2 rounded-2xl border border-dashed border-slate-200 p-3">
               <input value={nu.username} onChange={(e) => setNu((s) => ({ ...s, username: e.target.value }))} placeholder={t("login.username")} className={`${field} min-w-28 flex-1`} />
-              <input value={nu.pin} onChange={(e) => setNu((s) => ({ ...s, pin: e.target.value.replace(/\D/g, "").slice(0, 8) }))} type="password" inputMode="numeric" placeholder={t("admin.userPin")} className={`${field} w-28`} />
+              <input value={nu.pin} onChange={(e) => setNu((s) => ({ ...s, pin: e.target.value.replace(/\D/g, "").slice(0, 12) }))} type="password" inputMode="numeric" placeholder={t("admin.userPin")} className={`${field} w-28`} />
               <select value={nu.role} onChange={(e) => setNu((s) => ({ ...s, role: e.target.value }))} className={`${field} cursor-pointer`}>
                 <option value="viewer">{t("role.viewer")}</option>
                 <option value="admin">{t("role.admin")}</option>

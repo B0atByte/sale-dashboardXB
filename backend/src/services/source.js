@@ -3,22 +3,18 @@
  * - ถ้าแอดมินตั้งค่าใหม่ผ่านหน้า Admin จะบันทึกลงไฟล์ data/source.json (คงอยู่แม้ restart)
  * - ถ้ายังไม่เคยตั้ง ใช้ค่า SHEET_CSV_URL จาก .env
  */
-import fs from 'node:fs';
-import path from 'node:path';
-import { fileURLToPath } from 'node:url';
 import config from '../config.js';
+import { createStore } from './jsonStore.js';
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const DATA_DIR = path.resolve(__dirname, '..', '..', 'data');
-const SOURCE_FILE = path.join(DATA_DIR, 'source.json');
+const store = createStore('source.json', null);
 
-/** อ่าน URL ที่แอดมินตั้งไว้ (ถ้ามี) */
+/** อ่าน URL ที่แอดมินตั้งไว้ (ถ้ามี) — ไฟล์เสียให้ fallback ไป .env แต่ log ไว้ */
 function readOverride() {
   try {
-    const raw = fs.readFileSync(SOURCE_FILE, 'utf8');
-    const obj = JSON.parse(raw);
-    return typeof obj.url === 'string' && obj.url ? obj : null;
-  } catch {
+    const obj = store.read();
+    return obj && typeof obj.url === 'string' && obj.url ? obj : null;
+  } catch (err) {
+    console.error(`[source] source.json มีปัญหา ใช้ค่าจาก .env ชั่วคราว: ${err.message}`);
     return null;
   }
 }
@@ -59,20 +55,27 @@ export function getSourceInfo() {
   };
 }
 
-/** ตรวจว่าเป็น URL ของ Google Sheets ที่พอรับได้ (หลังแปลงจะดึง CSV ได้) */
+/**
+ * ตรวจว่าเป็น URL ของ Google Sheets ที่พอรับได้ (กัน SSRF)
+ * ใช้ new URL() parse จริงแล้วเทียบ hostname แบบตรงตัว — กัน bypass เช่น
+ * docs.google.com.evil.com หรือ user@docs.google.com ที่ regex เดิมอาจพลาด
+ */
 export function isValidSheetUrl(url) {
-  const s = String(url || '').trim();
-  return /^https:\/\/docs\.google\.com\/spreadsheets\//.test(s);
+  try {
+    const u = new URL(String(url || '').trim());
+    return (
+      u.protocol === 'https:' &&
+      u.hostname === 'docs.google.com' &&
+      u.pathname.startsWith('/spreadsheets/')
+    );
+  } catch {
+    return false;
+  }
 }
 
 /** ตั้งค่า URL ใหม่ (บันทึกลงไฟล์) — เก็บเป็นรูปแบบ CSV ที่ดึงได้จริง */
 export function setSheetUrl(url) {
   const clean = toCsvExportUrl(String(url).trim());
-  fs.mkdirSync(DATA_DIR, { recursive: true });
-  fs.writeFileSync(
-    SOURCE_FILE,
-    JSON.stringify({ url: clean, updatedAt: new Date().toISOString() }, null, 2),
-    'utf8'
-  );
+  store.write({ url: clean, updatedAt: new Date().toISOString() });
   return clean;
 }

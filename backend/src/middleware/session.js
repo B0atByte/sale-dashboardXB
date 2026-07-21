@@ -4,6 +4,7 @@
  * - requireRole(role) ใช้บังคับสิทธิ์ระดับ role (เช่น admin เท่านั้น)
  */
 import crypto from 'node:crypto';
+import config from '../config.js';
 
 const COOKIE_NAME = 'xbloom_session';
 const SESSION_TTL_MS = 12 * 60 * 60 * 1000; // 12 ชั่วโมง
@@ -39,7 +40,7 @@ export function issueSession(res, user) {
     sameSite: 'lax',
     maxAge: SESSION_TTL_MS,
     path: '/',
-    // secure: true, // <- เปิดเมื่อ deploy ผ่าน HTTPS
+    secure: config.cookieSecure, // ตั้ง COOKIE_SECURE=true ใน .env เมื่อ deploy ผ่าน HTTPS
   });
 }
 

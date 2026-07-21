@@ -14,6 +14,7 @@ import { clearCache, getSalesData } from '../services/sheets.js';
 import { listUsers, addUser, removeUser } from '../services/users.js';
 import { getAllTargets, setTarget } from '../services/targets.js';
 import { getSettings, setSettings } from '../services/settings.js';
+import { asyncHandler } from '../middleware/asyncHandler.js';
 
 const router = Router();
 
@@ -22,7 +23,7 @@ router.get('/admin/source', (_req, res) => {
   res.json(getSourceInfo());
 });
 
-router.post('/admin/source', async (req, res) => {
+router.post('/admin/source', asyncHandler(async (req, res) => {
   const url = String(req.body?.url || '').trim();
   if (!isValidSheetUrl(url)) {
     return res.status(400).json({ error: 'invalid_url' });
@@ -43,7 +44,7 @@ router.post('/admin/source', async (req, res) => {
     /* ลองใหม่ตอน request ถัดไป */
   }
   res.json({ ok: true, ...getSourceInfo() });
-});
+}));
 
 // ---------- จัดการผู้ใช้ ----------
 router.get('/admin/users', (_req, res) => {

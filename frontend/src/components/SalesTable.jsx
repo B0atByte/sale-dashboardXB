@@ -22,7 +22,7 @@ export default function SalesTable({ records = [], filtersKey = "" }) {
 
   // เรียงตามวันที่ใหม่สุดก่อน (YYYY-MM-DD เปรียบเทียบสตริงได้โดยตรง)
   const sorted = useMemo(
-    () => [...records].sort((a, b) => b.date.localeCompare(a.date)),
+    () => [...records].sort((a, b) => (b.date || "").localeCompare(a.date || "")),
     [records]
   );
 

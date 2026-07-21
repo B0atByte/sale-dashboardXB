@@ -2,20 +2,17 @@
  * targets.js — เก็บเป้ายอดขายรายเดือน ใน data/targets.json
  * รูปแบบ: { "YYYY-MM": จำนวนเงินเป้า }
  */
-import fs from 'node:fs';
-import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { createStore } from './jsonStore.js';
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const DATA_DIR = path.resolve(__dirname, '..', '..', 'data');
-const FILE = path.join(DATA_DIR, 'targets.json');
+const store = createStore('targets.json', {});
 
 /** อ่านเป้าทั้งหมด */
 export function getAllTargets() {
   try {
-    const obj = JSON.parse(fs.readFileSync(FILE, 'utf8'));
+    const obj = store.read();
     return obj && typeof obj === 'object' ? obj : {};
-  } catch {
+  } catch (err) {
+    console.error(`[targets] targets.json มีปัญหา ใช้ค่าว่างชั่วคราว: ${err.message}`);
     return {};
   }
 }
@@ -27,7 +24,6 @@ export function setTarget(month, amount) {
   if (!Number.isFinite(amt) || amt < 0) return { error: 'invalid_amount' };
   const targets = getAllTargets();
   targets[month] = amt;
-  fs.mkdirSync(DATA_DIR, { recursive: true });
-  fs.writeFileSync(FILE, JSON.stringify(targets, null, 2), 'utf8');
+  store.write(targets);
   return { ok: true, targets };
 }

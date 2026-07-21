@@ -226,7 +226,10 @@ export function exportSalesCsv(records = [], filename = "xbloom-sales", t = (k) 
     ["netRevenue", t("col.net")],
   ];
   const esc = (v) => {
-    const s = String(v ?? "");
+    let s = String(v ?? "");
+    // กัน CSV/formula injection: ค่าข้อความที่ขึ้นต้นด้วย = + - @ (หรือ tab/CR)
+    // อาจถูก Excel/Sheets ตีความเป็นสูตร — เติม ' นำหน้า (ยกเว้นตัวเลขจริง เช่น -500)
+    if (/^[=+\-@\t\r]/.test(s) && !/^[+-]?\d/.test(s)) s = `'${s}`;
     return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
   };
   const header = cols.map((c) => c[1]).join(",");

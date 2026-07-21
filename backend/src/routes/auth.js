@@ -11,9 +11,11 @@ import { issueSession, clearSession, getUser } from '../middleware/session.js';
 
 const router = Router();
 
-const attempts = new Map(); // ip -> { fails, lockUntil }
+const attempts = new Map(); // ip -> { fails, lockUntil, seen }
 const MAX_FAILS = 5;
-const LOCK_MS = 60_000;
+const BASE_LOCK_MS = 60_000; // ล็อกครั้งแรก 1 นาที
+const MAX_LOCK_MS = 15 * 60_000; // เพดานล็อก 15 นาที
+const ATTEMPT_TTL_MS = 60 * 60_000; // ล้าง entry ที่เงียบเกิน 1 ชม. (กัน map โตไม่จำกัด)
 
 function secondsLocked(ip) {
   const a = attempts.get(ip);
@@ -23,14 +25,27 @@ function secondsLocked(ip) {
   return 0;
 }
 function recordFail(ip) {
-  const a = attempts.get(ip) || { fails: 0, lockUntil: 0 };
+  const a = attempts.get(ip) || { fails: 0, lockUntil: 0, seen: 0 };
   a.fails += 1;
+  a.seen = Date.now();
   if (a.fails >= MAX_FAILS) {
-    a.lockUntil = Date.now() + LOCK_MS;
-    a.fails = 0;
+    // exponential backoff: ยิ่งพยายามซ้ำหลังโดนล็อก ยิ่งล็อกนานขึ้น (ไม่รีเซ็ตตัวนับ)
+    const over = a.fails - MAX_FAILS;
+    a.lockUntil = Date.now() + Math.min(MAX_LOCK_MS, BASE_LOCK_MS * 2 ** over);
   }
   attempts.set(ip, a);
 }
+
+// กวาดล้าง entry เก่าเป็นระยะ (กัน memory leak จาก IP ที่ fail แล้วหายไป)
+const sweepTimer = setInterval(() => {
+  const now = Date.now();
+  for (const [ip, a] of attempts) {
+    if (now - (a.seen || 0) > ATTEMPT_TTL_MS && (!a.lockUntil || now > a.lockUntil)) {
+      attempts.delete(ip);
+    }
+  }
+}, 10 * 60_000);
+sweepTimer.unref?.();
 
 router.get('/session', (req, res) => {
   const u = getUser(req);
