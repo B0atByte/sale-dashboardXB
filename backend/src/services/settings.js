@@ -7,8 +7,8 @@ const store = createStore('settings.json', {});
 
 const DEFAULTS = {
   gmvField: 'lineTotal', // 'lineTotal' (ราคาขาย) | 'netRevenue' (รายรับสุทธิ)
-  cacheTtlSeconds: 15,
-  refreshIntervalMs: 20000,
+  cacheTtlSeconds: 60, // อย่าตั้งต่ำเกินไป — Google Sheet export ช้า ~1-2 วิ/ครั้ง และอาจ throttle ถ้ายิงถี่
+  refreshIntervalMs: 60000,
   brandTitle: 'xBloom Sale Dashboard',
   brandFooter: '© 2026 xBloomXCasalapin',
   showDemo: true,

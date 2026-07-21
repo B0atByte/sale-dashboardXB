@@ -110,7 +110,7 @@ export function verifyUser(username, pin) {
 export function addUser(username, pin, role) {
   const uname = String(username || '').trim();
   if (!uname || !/^[a-zA-Z0-9_.\- ]{2,20}$/.test(uname)) return { error: 'invalid_username' };
-  if (!/^\d{6,12}$/.test(String(pin || ''))) return { error: 'invalid_pin' };
+  if (!/^\d{4,12}$/.test(String(pin || ''))) return { error: 'invalid_pin' };
   if (!ROLES.includes(role)) return { error: 'invalid_role' };
   const users = ensureSeed();
   if (users.some((u) => u.username.toLowerCase() === uname.toLowerCase())) {

@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { shiftRange } from "../utils/data";
 
-/** รีเฟรชอัตโนมัติทุก 20 วินาที (near-realtime) */
-export const REFRESH_INTERVAL_MS = 20000;
+/** รอบรีเฟรชอัตโนมัติเริ่มต้น (แอดมินปรับได้ในหน้าตั้งค่า) — 60 วิ เพื่อไม่ยิง Google Sheet ถี่เกิน */
+export const REFRESH_INTERVAL_MS = 60000;
 
 async function fetchJson(url, signal) {
   const res = await fetch(url, { credentials: "same-origin", signal });
@@ -60,7 +60,9 @@ export default function useSalesData(filters, refreshMs = REFRESH_INTERVAL_MS) {
         setLoading(false);
       } catch (err) {
         if (err.name === "AbortError") return;
-        setError(true);
+        // refresh เบื้องหลัง (silent) ที่พลาดชั่วคราว: คงข้อมูลเดิมไว้ ไม่เด้ง error ให้ UI กระพริบ
+        // แสดง error เฉพาะตอนโหลดครั้งแรก/เปลี่ยนตัวกรอง (foreground) เท่านั้น
+        if (!silent) setError(true);
         setLoading(false);
       }
     },

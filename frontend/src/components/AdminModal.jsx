@@ -188,7 +188,7 @@ export default function AdminModal({ open, onClose, onChanged }) {
   const label = "mb-1 block text-[10px] font-black uppercase tracking-widest text-slate-400";
   const heading = "mb-3 text-[11px] font-black uppercase tracking-widest text-slate-400";
   const saveBtn = "rounded-xl bg-slate-800 px-5 py-2.5 text-xs font-black uppercase tracking-widest text-white transition hover:bg-slate-900 active:scale-95 disabled:opacity-40";
-  const canAddUser = nu.username.trim().length >= 2 && nu.pin.length >= 6 && !uBusy;
+  const canAddUser = nu.username.trim().length >= 2 && nu.pin.length >= 4 && !uBusy;
 
   const TABS = [
     { k: "general", label: t("settings.tabGeneral") },

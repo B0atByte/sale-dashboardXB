@@ -70,11 +70,12 @@ export default function AiInsight({ from, to, platform }) {
         </button>
       </div>
 
-      {loading ? (
+      {loading && !text ? (
         <p className="text-sm font-medium text-slate-400">{t("ai.insight.loading")}</p>
-      ) : error ? (
+      ) : error && !text ? (
         <p className="text-sm font-medium text-rose-500">{t("ai.insight.error")}</p>
       ) : (
+        // ถ้ามีเนื้อหาเดิมอยู่แล้ว คงไว้เสมอ (ตอนโหลด/พลาดชั่วคราวจะได้ไม่ "หาย")
         <div className="whitespace-pre-line text-sm leading-relaxed text-slate-700">
           {text}
         </div>
