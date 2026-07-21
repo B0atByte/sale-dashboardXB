@@ -108,7 +108,7 @@ export default function SalesPage({ onLogout, user }) {
 
         {loading && summary && <LoadingBadge label={activeLabel} />}
 
-        <main className="mx-auto max-w-7xl space-y-6 px-4 py-6 sm:px-6">
+        <main className="mx-auto max-w-7xl space-y-6 px-4 pt-6 pb-28 sm:px-6">
           <div className="lg:hidden">
             <PlatformTabs platforms={platforms} active={filters.platform} onSelect={setPlatform} />
           </div>

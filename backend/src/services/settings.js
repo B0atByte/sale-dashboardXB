@@ -6,7 +6,7 @@ import { createStore } from './jsonStore.js';
 const store = createStore('settings.json', {});
 
 const DEFAULTS = {
-  gmvField: 'lineTotal', // 'lineTotal' (ราคาขาย) | 'netRevenue' (รายรับสุทธิ)
+  gmvField: 'lineTotal', // 'lineTotal' (ราคาสินค้าขาย=P) | 'netRevenue' (รายรับจากคำสั่งซื้อ=AK) | 'vtecPrice' (ราคาคีย์ VTEC=AM)
   cacheTtlSeconds: 60, // อย่าตั้งต่ำเกินไป — Google Sheet export ช้า ~1-2 วิ/ครั้ง และอาจ throttle ถ้ายิงถี่
   refreshIntervalMs: 60000,
   brandTitle: 'xBloom Sale Dashboard',
@@ -31,7 +31,7 @@ export function setSettings(patch = {}) {
   const current = store.read();
   const next = { ...DEFAULTS, ...(current && typeof current === 'object' ? current : {}) };
 
-  if (patch.gmvField === 'lineTotal' || patch.gmvField === 'netRevenue') {
+  if (['lineTotal', 'netRevenue', 'vtecPrice'].includes(patch.gmvField)) {
     next.gmvField = patch.gmvField;
   }
   if (patch.cacheTtlSeconds !== undefined && Number.isFinite(Number(patch.cacheTtlSeconds))) {

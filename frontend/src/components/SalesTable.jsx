@@ -12,19 +12,51 @@ import {
 
 const PAGE_SIZE = 20;
 
+// คอลัมน์ที่คลิกหัวเพื่อเรียงได้ (num=ตัวเลขเทียบค่า, ไม่งั้นเรียงแบบข้อความ)
+const COLUMNS = [
+  { key: "date", labelKey: "col.date", get: (r) => r.date || "" },
+  { key: "platform", labelKey: "col.platform", get: (r) => r.platform || "" },
+  { key: "customer", labelKey: "col.customer", get: (r) => r.customer || "" },
+  { key: "product", labelKey: "col.product", get: (r) => r.productName || "" },
+  { key: "category", labelKey: "col.category", get: (r) => r.category || "" },
+  { key: "campaign", labelKey: "col.campaign", get: (r) => r.campaign || "" },
+  { key: "qty", labelKey: "col.qty", num: true, align: "right", get: (r) => r.quantity || 0 },
+  { key: "amount", labelKey: "col.amount", num: true, align: "right", get: (r) => gmvOf(r) },
+];
+
 /**
- * ตารางรายการขาย: เรียงวันที่ล่าสุดก่อน + ค้นหาในตาราง + แบ่งหน้า + ส่งออก CSV
+ * ตารางรายการขาย: คลิกหัวคอลัมน์เพื่อเรียง (มาก↔น้อย) ได้ทุกคอลัมน์ + ค้นหา + แบ่งหน้า + ส่งออก CSV
  */
 export default function SalesTable({ records = [], filtersKey = "" }) {
   const { t, lang } = useLang();
   const [page, setPage] = useState(1);
   const [query, setQuery] = useState("");
+  const [sortKey, setSortKey] = useState("date");
+  const [sortDir, setSortDir] = useState("desc"); // คลิกครั้งแรก = มากไปน้อย
 
-  // เรียงตามวันที่ใหม่สุดก่อน (YYYY-MM-DD เปรียบเทียบสตริงได้โดยตรง)
-  const sorted = useMemo(
-    () => [...records].sort((a, b) => (b.date || "").localeCompare(a.date || "")),
-    [records]
-  );
+  const toggleSort = (key) => {
+    if (key === sortKey) {
+      setSortDir((d) => (d === "asc" ? "desc" : "asc"));
+    } else {
+      setSortKey(key);
+      setSortDir("desc");
+    }
+  };
+
+  // เรียงตามคอลัมน์ที่เลือก (ตัวเลข=เทียบค่า, ข้อความ=localeCompare ตามภาษา)
+  const sorted = useMemo(() => {
+    const col = COLUMNS.find((c) => c.key === sortKey) || COLUMNS[0];
+    const dir = sortDir === "asc" ? 1 : -1;
+    const locale = lang === "en" ? "en" : "th";
+    return [...records].sort((a, b) => {
+      const va = col.get(a);
+      const vb = col.get(b);
+      const cmp = col.num
+        ? (va || 0) - (vb || 0)
+        : String(va).localeCompare(String(vb), locale, { numeric: true });
+      return dir * cmp;
+    });
+  }, [records, sortKey, sortDir, lang]);
 
   // ค้นหาในตาราง (กรองเฉพาะแถวที่แสดง ไม่กระทบการเรียก API)
   const filtered = useMemo(() => {
@@ -42,7 +74,7 @@ export default function SalesTable({ records = [], filtersKey = "" }) {
   // รีเซ็ตหน้าเมื่อเปลี่ยนตัวกรองหลัก (filtersKey) หรือพิมพ์ค้นหา
   useEffect(() => {
     setPage(1);
-  }, [filtersKey, query]);
+  }, [filtersKey, query, sortKey, sortDir]);
 
   // ถ้าจำนวนข้อมูลลดลงจนหน้าปัจจุบันเกินหน้าสุดท้าย ให้หนีบกลับเข้าช่วง
   useEffect(() => {
@@ -98,14 +130,23 @@ export default function SalesTable({ records = [], filtersKey = "" }) {
         <table className="w-full min-w-[900px] text-sm">
           <thead className="bg-slate-50">
             <tr>
-              <th className={th}>{t("col.date")}</th>
-              <th className={th}>{t("col.platform")}</th>
-              <th className={th}>{t("col.customer")}</th>
-              <th className={th}>{t("col.product")}</th>
-              <th className={th}>{t("col.category")}</th>
-              <th className={th}>{t("col.campaign")}</th>
-              <th className={`${th} text-right`}>{t("col.qty")}</th>
-              <th className={`${th} text-right`}>{t("col.amount")}</th>
+              {COLUMNS.map((c) => {
+                const active = c.key === sortKey;
+                return (
+                  <th key={c.key} className={`${th} ${c.align === "right" ? "text-right" : ""}`}>
+                    <button
+                      type="button"
+                      onClick={() => toggleSort(c.key)}
+                      className={`inline-flex cursor-pointer items-center gap-1 uppercase tracking-widest transition hover:text-slate-600 ${active ? "text-indigo-600" : ""}`}
+                    >
+                      {t(c.labelKey)}
+                      <span className="text-[9px] leading-none">
+                        {active ? (sortDir === "desc" ? "▼" : "▲") : "↕"}
+                      </span>
+                    </button>
+                  </th>
+                );
+              })}
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-50">

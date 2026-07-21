@@ -260,7 +260,7 @@ export default function AdminModal({ open, onClose, onChanged }) {
             <div>
               <h3 className={heading}>{t("settings.gmv")}</h3>
               <div className="flex gap-2">
-                {[{ v: "lineTotal", l: t("settings.gmvLine") }, { v: "netRevenue", l: t("settings.gmvNet") }].map((o) => (
+                {[{ v: "lineTotal", l: t("settings.gmvLine") }, { v: "netRevenue", l: t("settings.gmvNet") }, { v: "vtecPrice", l: t("settings.gmvVtec") }].map((o) => (
                   <button
                     key={o.v}
                     type="button"

@@ -168,6 +168,7 @@ export function parseSheetCsv(csvText) {
       quantity: parseNum(cellOf(row, 'จำนวน')),
       lineTotal: parseNum(cellOf(row, 'ราคาสินค้าขาย')),
       netRevenue: parseNum(cellOf(row, 'รายรับจากคำสั่งซื้อ')),
+      vtecPrice: parseNum(cellOf(row, 'ราคาคีย์ VTEC')),
     });
   }
 

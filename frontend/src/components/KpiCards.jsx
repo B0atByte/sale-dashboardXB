@@ -14,7 +14,7 @@ function formatVal(num) {
 }
 
 /**
- * แท็บเทียบ 1 อัน (VS LY / VS LW / VS LM) — รูปแบบเดียวกับ k.boat:
+ * แท็บเทียบ 1 อัน (VS LY / VS LM / VS LW (ปี → เดือน → สัปดาห์)) — รูปแบบเดียวกับ k.boat:
  * ป้าย % (เขียว/แดง + ลูกศร) + Prev: (ค่าก่อนหน้า) + Diff: (ส่วนต่าง +/−)
  */
 function ComparisonTag({ label, currentValue, prevValue, prefix = "" }) {
@@ -63,7 +63,7 @@ function ComparisonTag({ label, currentValue, prevValue, prefix = "" }) {
 
 /**
  * การ์ด KPI — ยอดขายรวม / ออเดอร์ / ชิ้น / AIV
- * ใต้แต่ละใบมี 3 แท็บเทียบ (VS LY / VS LW / VS LM) แบบ Prev: / Diff: เหมือนไฟล์เดิม
+ * ใต้แต่ละใบมี 3 แท็บเทียบ (VS LY / VS LM / VS LW (ปี → เดือน → สัปดาห์)) แบบ Prev: / Diff: เหมือนไฟล์เดิม
  */
 export default function KpiCards({ kpi, records = [], comparisons }) {
   const { t } = useLang();
@@ -94,8 +94,8 @@ export default function KpiCards({ kpi, records = [], comparisons }) {
           {comparisons && (
             <div className="mt-4 grid grid-cols-3 gap-2 border-t border-slate-50 pt-4">
               <ComparisonTag label="VS LY" currentValue={c.curr} prevValue={comparisons.ly?.[c.metric]} prefix={c.prefix} />
-              <ComparisonTag label="VS LW" currentValue={c.curr} prevValue={comparisons.lw?.[c.metric]} prefix={c.prefix} />
               <ComparisonTag label="VS LM" currentValue={c.curr} prevValue={comparisons.lm?.[c.metric]} prefix={c.prefix} />
+              <ComparisonTag label="VS LW" currentValue={c.curr} prevValue={comparisons.lw?.[c.metric]} prefix={c.prefix} />
             </div>
           )}
         </div>
