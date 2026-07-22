@@ -7,6 +7,7 @@ import config from '../config.js';
 import { createStore } from './jsonStore.js';
 
 const store = createStore('source.json', null);
+const extraStore = createStore('sources.json', []); // แหล่งข้อมูลเสริม (หลายชีต) [{ url, platform }]
 
 /** อ่าน URL ที่แอดมินตั้งไว้ (ถ้ามี) — ไฟล์เสียให้ fallback ไป .env แต่ log ไว้ */
 function readOverride() {
@@ -77,5 +78,34 @@ export function isValidSheetUrl(url) {
 export function setSheetUrl(url) {
   const clean = toCsvExportUrl(String(url).trim());
   store.write({ url: clean, updatedAt: new Date().toISOString() });
+  return clean;
+}
+
+/**
+ * แหล่งข้อมูลเสริม (ชีตเพิ่มเติม) — คืน [{ url, platform }] (url เป็นรูปแบบ CSV แล้ว)
+ * แต่ละชีตจะถูกดึงมารวมกับแหล่งหลัก และถ้ากำหนด platform ทุกแถวจะถูกแปะเป็น platform นั้น
+ */
+export function getExtraSources() {
+  try {
+    const arr = extraStore.read();
+    if (!Array.isArray(arr)) return [];
+    return arr
+      .filter((s) => s && typeof s.url === 'string' && s.url)
+      .map((s) => ({ url: toCsvExportUrl(s.url), platform: String(s.platform || '').trim() }));
+  } catch (err) {
+    console.error(`[source] sources.json มีปัญหา: ${err.message}`);
+    return [];
+  }
+}
+
+/** ตั้งค่าแหล่งข้อมูลเสริม (validate host + แปลงเป็น CSV) */
+export function setExtraSources(list) {
+  const clean = (Array.isArray(list) ? list : [])
+    .filter((s) => s && typeof s.url === 'string' && isValidSheetUrl(s.url))
+    .map((s) => ({
+      url: toCsvExportUrl(String(s.url).trim()),
+      platform: String(s.platform || '').trim().slice(0, 40),
+    }));
+  extraStore.write(clean);
   return clean;
 }

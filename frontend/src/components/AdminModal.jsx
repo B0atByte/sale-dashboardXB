@@ -7,9 +7,10 @@ import { IconX, IconSettings } from "./Icons";
  * Admin Panel (เฉพาะ admin) — แบบแท็บ:
  *   ทั่วไป (แบรนด์/ความไว/แหล่งยอดขาย) · แหล่งข้อมูล · เป้ายอดขาย · ผู้ใช้
  */
-export default function AdminModal({ open, onClose, onChanged }) {
+export default function AdminModal({ open, user, onClose, onChanged }) {
   const { t, lang } = useLang();
   const { settings } = useSettings();
+  const isIt = user?.role === "itsupport";
   const [tab, setTab] = useState("general");
 
   // ทั่วไป (settings)
@@ -22,6 +23,9 @@ export default function AdminModal({ open, onClose, onChanged }) {
   const [url, setUrl] = useState("");
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState(null);
+  const [extras, setExtras] = useState([]); // ชีตเสริม [{ url, platform }]
+  const [extraBusy, setExtraBusy] = useState(false);
+  const [extraStatus, setExtraStatus] = useState(null);
 
   // ผู้ใช้
   const [users, setUsers] = useState([]);
@@ -48,13 +52,20 @@ export default function AdminModal({ open, onClose, onChanged }) {
     setUStatus(null);
     setTgStatus(null);
     setGenStatus(null);
-    fetch("/api/admin/source", { credentials: "same-origin" })
-      .then((r) => r.json())
-      .then((d) => {
-        setInfo(d);
-        setUrl(d.url || "");
-      })
-      .catch(() => {});
+    setExtraStatus(null);
+    if (user?.role === "itsupport") {
+      fetch("/api/admin/source", { credentials: "same-origin" })
+        .then((r) => r.json())
+        .then((d) => {
+          setInfo(d);
+          setUrl(d.url || "");
+        })
+        .catch(() => {});
+      fetch("/api/admin/sources", { credentials: "same-origin" })
+        .then((r) => r.json())
+        .then((d) => setExtras(Array.isArray(d.sources) ? d.sources : []))
+        .catch(() => {});
+    }
     loadUsers();
   }, [open, loadUsers]);
 
@@ -116,6 +127,39 @@ export default function AdminModal({ open, onClose, onChanged }) {
       setStatus({ type: "error", msg: t("admin.errFetch") });
     } finally {
       setBusy(false);
+    }
+  };
+
+  const addExtraRow = () => setExtras((a) => [...a, { url: "", platform: "" }]);
+  const updateExtra = (i, patch) =>
+    setExtras((a) => a.map((s, k) => (k === i ? { ...s, ...patch } : s)));
+  const removeExtra = (i) => setExtras((a) => a.filter((_, k) => k !== i));
+
+  const saveExtras = async () => {
+    setExtraBusy(true);
+    setExtraStatus(null);
+    try {
+      const list = extras
+        .filter((s) => String(s.url || "").trim())
+        .map((s) => ({ url: s.url.trim(), platform: String(s.platform || "").trim() }));
+      const res = await fetch("/api/admin/sources", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "same-origin",
+        body: JSON.stringify({ sources: list }),
+      });
+      const d = await res.json().catch(() => ({}));
+      if (res.ok) {
+        setExtras(d.sources || []);
+        setExtraStatus({ type: "success", msg: t("admin.sourcesSaved") });
+        onChanged?.();
+      } else {
+        setExtraStatus({ type: "error", msg: t("admin.errFetch") });
+      }
+    } catch {
+      setExtraStatus({ type: "error", msg: t("admin.errFetch") });
+    } finally {
+      setExtraBusy(false);
     }
   };
 
@@ -192,7 +236,7 @@ export default function AdminModal({ open, onClose, onChanged }) {
 
   const TABS = [
     { k: "general", label: t("settings.tabGeneral") },
-    { k: "source", label: t("settings.tabSource") },
+    ...(isIt ? [{ k: "source", label: t("settings.tabSource") }] : []),
     { k: "targets", label: t("settings.tabTargets") },
     { k: "users", label: t("settings.tabUsers") },
   ];
@@ -307,6 +351,57 @@ export default function AdminModal({ open, onClose, onChanged }) {
                 {busy ? t("admin.saving") : t("admin.save")}
               </button>
             </div>
+
+            {/* ชีตเสริม (หลาย platform / สาขา) */}
+            <div className="mt-6 border-t border-slate-100 pt-5">
+              <h3 className={heading}>{t("admin.extraTitle")}</h3>
+              <p className="mb-3 text-[11px] leading-relaxed text-slate-400">{t("admin.extraDesc")}</p>
+              <div className="space-y-2">
+                {extras.length === 0 && (
+                  <p className="text-xs text-slate-400">{t("admin.extraEmpty")}</p>
+                )}
+                {extras.map((s, i) => (
+                  <div key={i} className="flex flex-col gap-2 rounded-2xl border border-slate-100 bg-slate-50 p-3">
+                    <div className="flex items-center gap-2">
+                      <input
+                        value={s.platform || ""}
+                        onChange={(e) => updateExtra(i, { platform: e.target.value })}
+                        placeholder={t("admin.extraPlatform")}
+                        className={`${field} flex-1`}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => removeExtra(i)}
+                        className="rounded-lg px-2.5 py-1 text-[11px] font-bold text-rose-500 transition hover:bg-rose-50"
+                      >
+                        {lang === "en" ? "Remove" : "ลบ"}
+                      </button>
+                    </div>
+                    <input
+                      value={s.url || ""}
+                      onChange={(e) => updateExtra(i, { url: e.target.value })}
+                      placeholder={t("admin.extraUrl")}
+                      className={`${field} w-full break-all`}
+                    />
+                  </div>
+                ))}
+              </div>
+              <button
+                type="button"
+                onClick={addExtraRow}
+                className="mt-2 rounded-xl border border-dashed border-slate-300 px-3 py-2 text-xs font-bold text-slate-500 transition hover:bg-slate-50"
+              >
+                + {t("admin.extraAdd")}
+              </button>
+              {extraStatus && (
+                <p className={`mt-2 text-xs font-bold ${extraStatus.type === "success" ? "text-emerald-600" : "text-rose-500"}`}>{extraStatus.msg}</p>
+              )}
+              <div className="mt-3 flex justify-end">
+                <button onClick={saveExtras} disabled={extraBusy} className={saveBtn}>
+                  {extraBusy ? t("admin.saving") : t("admin.save")}
+                </button>
+              </div>
+            </div>
           </div>
         )}
 
@@ -351,6 +446,7 @@ export default function AdminModal({ open, onClose, onChanged }) {
               <select value={nu.role} onChange={(e) => setNu((s) => ({ ...s, role: e.target.value }))} className={`${field} cursor-pointer`}>
                 <option value="viewer">{t("role.viewer")}</option>
                 <option value="admin">{t("role.admin")}</option>
+                {isIt && <option value="itsupport">{t("role.itsupport")}</option>}
               </select>
               <button onClick={addUser} disabled={!canAddUser} className="rounded-xl bg-indigo-600 px-4 py-2.5 text-xs font-black uppercase tracking-wider text-white transition hover:bg-indigo-700 active:scale-95 disabled:opacity-40">
                 {t("admin.addUser")}
@@ -361,6 +457,7 @@ export default function AdminModal({ open, onClose, onChanged }) {
             )}
           </div>
         )}
+
       </div>
     </div>
   );

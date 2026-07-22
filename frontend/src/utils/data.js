@@ -22,11 +22,42 @@ const PLATFORM_COLOR_MAP = {
   b2b: "#e11d48",
   "event masala": "#ca8a04",
   voucher: "#0d9488",
+  "central world branch": "#db2777",
 };
 
 export function platformColor(name) {
   const key = String(name || "").trim().toLowerCase();
   return PLATFORM_COLOR_MAP[key] ?? OTHER_COLOR;
+}
+
+// ---- ลำดับช่องทางที่ผู้ใช้จัดเอง (เก็บใน localStorage ต่ออุปกรณ์) ----
+const PLATFORM_ORDER_KEY = "xbloom_platform_order";
+
+/** อ่านลำดับช่องทางที่ผู้ใช้ตั้งไว้ */
+export function readPlatformOrder() {
+  try {
+    const arr = JSON.parse(localStorage.getItem(PLATFORM_ORDER_KEY) || "[]");
+    return Array.isArray(arr) ? arr.filter((x) => typeof x === "string") : [];
+  } catch {
+    return [];
+  }
+}
+
+/** บันทึกลำดับช่องทาง */
+export function savePlatformOrder(list) {
+  try {
+    localStorage.setItem(PLATFORM_ORDER_KEY, JSON.stringify(Array.isArray(list) ? list : []));
+  } catch {
+    /* localStorage ไม่พร้อม (private mode) — ข้ามไป */
+  }
+}
+
+/** จัดช่องทางตามลำดับที่ตั้งไว้ (ที่ตั้งไว้ก่อน, ช่องทางใหม่ที่ยังไม่ถูกจัดต่อท้ายตามเดิม) */
+export function applyPlatformOrder(platforms = [], order = []) {
+  if (!order.length) return platforms;
+  const inOrder = order.filter((p) => platforms.includes(p));
+  const rest = platforms.filter((p) => !inOrder.includes(p));
+  return [...inOrder, ...rest];
 }
 
 // หมวดสินค้า 3 กลุ่ม — คีย์คงที่ (ชื่อที่แสดงมาจากไฟล์แปลภาษาผ่าน t)

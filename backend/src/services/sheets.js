@@ -9,7 +9,7 @@
  *   พร้อม fromCache: true — ถ้าไม่มี cache เลยจะ throw SheetFetchError (-> 502)
  */
 import { parseSheetCsv } from './parser.js';
-import { getSheetUrl } from './source.js';
+import { getSheetUrl, getExtraSources } from './source.js';
 import { getSettings } from './settings.js';
 
 /** error เฉพาะสำหรับกรณีดึงชีทไม่สำเร็จและไม่มี cache สำรอง */
@@ -31,17 +31,34 @@ export function clearCache() {
   inflight = null;
 }
 
-/** ดึง CSV จาก Google Sheets แล้ว parse — อัปเดต cache เมื่อสำเร็จ */
+/** ดึง CSV ดิบจาก URL เดียว (กันค้างด้วย timeout) */
+async function fetchCsv(url) {
+  const res = await fetch(url, { redirect: 'follow', signal: AbortSignal.timeout(20_000) });
+  if (!res.ok) throw new Error(`upstream ตอบสถานะ ${res.status}`);
+  return res.text();
+}
+
+/**
+ * ดึง + parse แหล่งหลัก แล้วรวมกับแหล่งข้อมูลเสริม (แต่ละชีต = 1 platform) — อัปเดต cache
+ * - แหล่งหลักพัง = โยน error (เหมือนเดิม); แหล่งเสริมพังตัวใดตัวหนึ่ง = ข้ามไป ไม่ทำทั้งระบบล่ม
+ */
 async function refresh() {
-  const res = await fetch(getSheetUrl(), {
-    redirect: 'follow',
-    signal: AbortSignal.timeout(20_000), // กันค้างถ้า upstream ไม่ตอบ
-  });
-  if (!res.ok) {
-    throw new Error(`upstream ตอบสถานะ ${res.status}`);
+  const records = parseSheetCsv(await fetchCsv(getSheetUrl()));
+
+  for (const src of getExtraSources()) {
+    try {
+      const extra = parseSheetCsv(await fetchCsv(src.url));
+      const tag = src.platform || '';
+      for (const r of extra) {
+        if (tag) r.platform = tag; // แปะ platform ของชีตนี้ (แบบ B: ทั้งชีต = platform เดียว)
+        r.id = `${tag || 'x'}-${r.id}`; // กัน id ชนกับแหล่งหลัก/ชีตอื่น
+        records.push(r);
+      }
+    } catch (err) {
+      console.warn(`[sheets] แหล่งเสริมโหลดไม่ได้ (${src.platform || src.url}): ${err.message}`);
+    }
   }
-  const csvText = await res.text();
-  const records = parseSheetCsv(csvText);
+
   cache = {
     records,
     updatedAt: new Date().toISOString(),

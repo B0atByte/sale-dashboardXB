@@ -5,6 +5,7 @@
  */
 import crypto from 'node:crypto';
 import config from '../config.js';
+import { roleRank } from '../services/users.js';
 
 const COOKIE_NAME = 'xbloom_session';
 const SESSION_TTL_MS = 12 * 60 * 60 * 1000; // 12 ชั่วโมง
@@ -88,12 +89,13 @@ export function requireSession(req, res, next) {
   return res.status(401).json({ error: 'auth_required' });
 }
 
-/** middleware: ต้องเป็น role ที่กำหนด (เช่น admin) */
-export function requireRole(role) {
+/** middleware: ต้องมีสิทธิ์อย่างน้อย minRole (role สูงกว่าเข้าถึงได้ด้วย เช่น itsupport เข้าทุกอย่างที่ admin เข้าได้) */
+export function requireRole(minRole) {
+  const need = roleRank(minRole);
   return (req, res, next) => {
     const u = getUser(req);
     if (!u) return res.status(401).json({ error: 'auth_required' });
-    if (u.role !== role) return res.status(403).json({ error: 'forbidden' });
+    if (roleRank(u.role) < need) return res.status(403).json({ error: 'forbidden' });
     next();
   };
 }

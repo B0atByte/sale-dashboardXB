@@ -2,6 +2,8 @@ import { useState } from "react";
 import {
   AreaChart,
   Area,
+  BarChart,
+  Bar,
   XAxis,
   YAxis,
   CartesianGrid,
@@ -69,6 +71,14 @@ export default function TrendChart({ records = [] }) {
   const fmtVal = (v) =>
     metric === "gmv" ? formatCurrency(v) : `${formatNumber(v)} ${t("trend.units")}`;
 
+  const trendTooltip = ({ active, payload }) =>
+    active && payload && payload.length ? (
+      <div className="rounded-2xl border border-slate-100 bg-white px-4 py-3 shadow-lg">
+        <p className="text-xs font-bold text-slate-700">{payload[0].payload.label}</p>
+        <p className="mt-1 text-sm font-bold text-indigo-600">{fmtVal(payload[0].payload.value)}</p>
+      </div>
+    ) : null;
+
   return (
     <section className="rounded-[32px] border border-slate-100 bg-white p-6 shadow-sm">
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
@@ -94,41 +104,42 @@ export default function TrendChart({ records = [] }) {
             value={metric}
             onChange={setMetric}
             options={[
-              { v: "gmv", label: t("trend.gmv") },
-              { v: "units", label: t("trend.units") },
+              { v: "gmv", label: `${t("trend.gmv")} (฿)` },
+              { v: "units", label: `${t("trend.units")} (pcs)` },
             ]}
           />
         </div>
       </div>
 
-      {data.length < 2 ? (
+      {data.length === 0 ? (
         <p className="py-16 text-center text-sm text-slate-400">{t("trend.needMore")}</p>
       ) : (
         <div className="h-72 w-full">
           <ResponsiveContainer width="100%" height="100%">
-            <AreaChart data={data} margin={{ top: 8, right: 8, left: 8, bottom: 0 }}>
-              <defs>
-                <linearGradient id="trendGrad" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="#6366f1" stopOpacity={0.15} />
-                  <stop offset="100%" stopColor="#6366f1" stopOpacity={0} />
-                </linearGradient>
-              </defs>
-              <CartesianGrid strokeDasharray="4 4" stroke="#e2e8f0" vertical={false} />
-              <XAxis dataKey="label" tick={{ fontSize: 11, fill: "#94a3b8" }} axisLine={false} tickLine={false} minTickGap={20} />
-              <YAxis tickFormatter={fmtY} tick={{ fontSize: 11, fill: "#94a3b8" }} axisLine={false} tickLine={false} width={44} />
-              <Tooltip
-                cursor={{ stroke: "#c7d2fe", strokeWidth: 1.5 }}
-                content={({ active, payload }) =>
-                  active && payload && payload.length ? (
-                    <div className="rounded-2xl border border-slate-100 bg-white px-4 py-3 shadow-lg">
-                      <p className="text-xs font-bold text-slate-700">{payload[0].payload.label}</p>
-                      <p className="mt-1 text-sm font-bold text-indigo-600">{fmtVal(payload[0].payload.value)}</p>
-                    </div>
-                  ) : null
-                }
-              />
-              <Area type="monotone" dataKey="value" stroke="#6366f1" strokeWidth={2} fill="url(#trendGrad)" isAnimationActive={false} />
-            </AreaChart>
+            {data.length === 1 ? (
+              // มีข้อมูลแค่ช่วงเดียว (เช่นวันเดียว) → แสดงเป็นแท่งเดียว ไม่ต้อง blank
+              <BarChart data={data} margin={{ top: 8, right: 8, left: 8, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="4 4" stroke="#e2e8f0" vertical={false} />
+                <XAxis dataKey="label" tick={{ fontSize: 11, fill: "#94a3b8" }} axisLine={false} tickLine={false} />
+                <YAxis tickFormatter={fmtY} tick={{ fontSize: 11, fill: "#94a3b8" }} axisLine={false} tickLine={false} width={44} />
+                <Tooltip cursor={{ fill: "#eef2ff" }} content={trendTooltip} />
+                <Bar dataKey="value" fill="#6366f1" radius={[8, 8, 0, 0]} maxBarSize={72} isAnimationActive={false} />
+              </BarChart>
+            ) : (
+              <AreaChart data={data} margin={{ top: 8, right: 8, left: 8, bottom: 0 }}>
+                <defs>
+                  <linearGradient id="trendGrad" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="#6366f1" stopOpacity={0.15} />
+                    <stop offset="100%" stopColor="#6366f1" stopOpacity={0} />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="4 4" stroke="#e2e8f0" vertical={false} />
+                <XAxis dataKey="label" tick={{ fontSize: 11, fill: "#94a3b8" }} axisLine={false} tickLine={false} minTickGap={20} />
+                <YAxis tickFormatter={fmtY} tick={{ fontSize: 11, fill: "#94a3b8" }} axisLine={false} tickLine={false} width={44} />
+                <Tooltip cursor={{ stroke: "#c7d2fe", strokeWidth: 1.5 }} content={trendTooltip} />
+                <Area type="monotone" dataKey="value" stroke="#6366f1" strokeWidth={2} fill="url(#trendGrad)" isAnimationActive={false} />
+              </AreaChart>
+            )}
           </ResponsiveContainer>
         </div>
       )}

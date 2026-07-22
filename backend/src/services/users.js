@@ -9,7 +9,17 @@ import { createStore, DataStoreError } from './jsonStore.js';
 
 const store = createStore('users.json', null); // ไม่มีไฟล์ → null (กรณี seed ครั้งแรก)
 
-export const ROLES = ['admin', 'viewer'];
+export const ROLES = ['itsupport', 'admin', 'viewer'];
+const ROLE_RANK = { viewer: 1, admin: 2, itsupport: 3 };
+
+/** ระดับสิทธิ์ของ role (ยิ่งมากยิ่งสูง) */
+export function roleRank(role) {
+  return ROLE_RANK[role] || 0;
+}
+/** caller จัดการ/เห็น target role ได้ไหม — จัดการได้เฉพาะ role ที่ rank ไม่สูงกว่าตัวเอง */
+export function canManageRole(callerRole, targetRole) {
+  return roleRank(targetRole) > 0 && roleRank(callerRole) >= roleRank(targetRole);
+}
 
 // ---------- การ hash PIN ----------
 // ใหม่: scrypt (memory-hard) + salt สุ่มต่อผู้ใช้ + pepper แยก → "scrypt$<saltHex>$<hashHex>"
@@ -72,18 +82,26 @@ function ensureSeed() {
     // มีไฟล์แต่รูปแบบผิด (ไม่ใช่ array) — ถือว่าเสีย ห้ามเขียนทับ ให้ล้มแบบดังเพื่อให้คนแก้
     throw new DataStoreError('users.json รูปแบบไม่ถูกต้อง (ต้องเป็น array)');
   }
-  if (data === null || data.length === 0) {
+  let users = data;
+  if (users === null || users.length === 0) {
     const pin = config.accessCode || '1234';
-    const seed = [{ username: 'admin', pinHash: makeHash(pin), role: 'admin' }];
-    store.write(seed);
-    return seed;
+    users = [{ username: 'admin', pinHash: makeHash(pin), role: 'admin' }];
+    store.write(users);
   }
-  return data;
+  // seed role itsupport (ลับ) ถ้าตั้ง IT_ACCESS_CODE ไว้และยังไม่มี — สร้าง/กู้คืนอัตโนมัติ
+  if (config.itAccessCode && !users.some((u) => u.role === 'itsupport')) {
+    users = [...users, { username: 'itsupport', pinHash: makeHash(config.itAccessCode), role: 'itsupport' }];
+    store.write(users);
+  }
+  return users;
 }
 
-/** รายชื่อผู้ใช้ (ไม่รวม hash) */
-export function listUsers() {
-  return ensureSeed().map((u) => ({ username: u.username, role: u.role }));
+/** รายชื่อผู้ใช้ (ไม่รวม hash) — กรองตามสิทธิ์ผู้เรียก (เห็นได้เฉพาะ role ที่ rank ไม่สูงกว่าตน) */
+export function listUsers(callerRole) {
+  const rank = roleRank(callerRole);
+  return ensureSeed()
+    .filter((u) => rank > 0 && roleRank(u.role) <= rank)
+    .map((u) => ({ username: u.username, role: u.role }));
 }
 
 /** ตรวจ username + PIN → คืน {username, role} หรือ null (อัปเกรด hash เก่า→scrypt อัตโนมัติเมื่อผ่าน) */
@@ -121,12 +139,13 @@ export function addUser(username, pin, role) {
   return { ok: true };
 }
 
-/** ลบผู้ใช้ (ห้ามลบ admin คนสุดท้าย) */
-export function removeUser(username) {
+/** ลบผู้ใช้ (ห้ามลบ admin คนสุดท้าย + จัดการได้เฉพาะ role ที่ไม่สูงกว่าตน) */
+export function removeUser(username, callerRole) {
   const uname = String(username || '').trim();
   const users = ensureSeed();
   const target = users.find((u) => u.username.toLowerCase() === uname.toLowerCase());
   if (!target) return { error: 'not_found' };
+  if (callerRole && !canManageRole(callerRole, target.role)) return { error: 'forbidden' };
   const admins = users.filter((u) => u.role === 'admin');
   if (target.role === 'admin' && admins.length <= 1) return { error: 'last_admin' };
   store.write(users.filter((u) => u.username.toLowerCase() !== uname.toLowerCase()));

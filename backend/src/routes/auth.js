@@ -8,6 +8,7 @@
 import { Router } from 'express';
 import { verifyUser } from '../services/users.js';
 import { issueSession, clearSession, getUser } from '../middleware/session.js';
+import { logActivity } from '../services/activity.js';
 
 const router = Router();
 
@@ -54,25 +55,32 @@ router.get('/session', (req, res) => {
 
 router.post('/login', (req, res) => {
   const ip = req.ip || 'unknown';
+  const { username, pin } = req.body || {};
+  const uname = String(username || '-').trim() || '-';
+
   const locked = secondsLocked(ip);
   if (locked > 0) {
+    logActivity({ type: 'login_locked', actor: uname, ip, detail: `ล็อกอีก ${locked}s` });
     return res.status(429).json({ error: 'too_many_attempts', retryAfter: locked });
   }
 
-  const { username, pin } = req.body || {};
   const user = verifyUser(username, pin);
   if (user) {
     attempts.delete(ip);
     issueSession(res, user);
+    logActivity({ type: 'login_success', actor: user.username, role: user.role, ip });
     return res.json({ ok: true, user });
   }
 
   recordFail(ip);
+  logActivity({ type: 'login_fail', actor: uname, ip, detail: 'PIN ไม่ถูกต้อง' });
   return res.status(401).json({ error: 'invalid_credentials' });
 });
 
 router.post('/logout', (req, res) => {
+  const u = getUser(req);
   clearSession(req, res);
+  if (u) logActivity({ type: 'logout', actor: u.username, role: u.role, ip: req.ip || 'unknown' });
   res.json({ ok: true });
 });
 

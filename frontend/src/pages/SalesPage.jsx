@@ -1,8 +1,7 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useLang } from "../i18n";
 import { useSettings } from "../settings";
 import Sidebar from "../components/Sidebar";
-import TargetCard from "../components/TargetCard";
 import AiInsight from "../components/AiInsight";
 import AiChat from "../components/AiChat";
 import Header from "../components/Header";
@@ -17,11 +16,19 @@ import ErrorBanner from "../components/ErrorBanner";
 import LoadingSkeleton from "../components/LoadingSkeleton";
 import LoadingBadge from "../components/LoadingBadge";
 import AdminModal from "../components/AdminModal";
+import ActivityLog from "../components/ActivityLog";
 import useSalesData, {
   useFilterOptions,
   useComparisons,
 } from "../hooks/useSalesData";
-import { platformDonut, categoryDonut, campaignDonut } from "../utils/data";
+import {
+  platformDonut,
+  categoryDonut,
+  campaignDonut,
+  readPlatformOrder,
+  savePlatformOrder,
+  applyPlatformOrder,
+} from "../utils/data";
 
 const EMPTY_FILTERS = {
   from: "",
@@ -38,13 +45,26 @@ const EMPTY_FILTERS = {
 export default function SalesPage({ onLogout, user }) {
   const { t } = useLang();
   const { settings, reloadSettings } = useSettings();
-  const isAdmin = user?.role === "admin";
+  const canOpenAdmin = ["admin", "itsupport"].includes(user?.role);
+  const isIt = user?.role === "itsupport";
   const [filters, setFilters] = useState(EMPTY_FILTERS);
   const [adminOpen, setAdminOpen] = useState(false);
+  const [logOpen, setLogOpen] = useState(false);
 
   const { records, summary, updatedAt, stale, loading, error, refresh } =
     useSalesData(filters, settings.refreshIntervalMs);
   const { platforms, campaigns } = useFilterOptions();
+
+  // ลำดับช่องทางที่ผู้ใช้จัดเอง (ลากใน sidebar) — จำใน localStorage
+  const [platformOrder, setPlatformOrder] = useState(readPlatformOrder);
+  const orderedPlatforms = useMemo(
+    () => applyPlatformOrder(platforms, platformOrder),
+    [platforms, platformOrder]
+  );
+  const reorderPlatforms = (names) => {
+    setPlatformOrder(names);
+    savePlatformOrder(names);
+  };
 
   // ช่วงวันที่ของข้อมูลจริง (ใช้เทียบเมื่อผู้ใช้ไม่ได้เลือกช่วงเอง)
   const dateSpan = useMemo(() => {
@@ -52,24 +72,6 @@ export default function SalesPage({ onLogout, user }) {
     return ds.length ? { from: ds[0], to: ds[ds.length - 1] } : null;
   }, [records]);
   const comparisons = useComparisons(filters, dateSpan);
-
-  // เป้ายอดขายรายเดือน — เดือนที่ใช้เทียบมาจากช่วงวันที่ที่เลือก (ถ้าไม่เลือก ใช้เดือนล่าสุดของข้อมูล)
-  const [targets, setTargets] = useState({});
-  const fetchTargets = useCallback(() => {
-    fetch("/api/targets", { credentials: "same-origin" })
-      .then((r) => r.json())
-      .then((d) => setTargets(d.targets || {}))
-      .catch(() => {});
-  }, []);
-  useEffect(() => {
-    fetchTargets();
-  }, [fetchTargets]);
-  const activeMonth = filters.from
-    ? filters.from.slice(0, 7)
-    : dateSpan?.to
-      ? dateSpan.to.slice(0, 7)
-      : "";
-  const targetGmv = targets[activeMonth] || 0;
 
   const filtersKey = `${filters.from}|${filters.to}|${filters.platform}|${filters.category}|${filters.campaign}|${filters.product}`;
   const isOverview = !filters.platform;
@@ -93,7 +95,14 @@ export default function SalesPage({ onLogout, user }) {
 
   return (
     <div className="min-h-screen bg-slate-50">
-      <Sidebar platforms={platforms} active={filters.platform} onSelect={setPlatform} />
+      <Sidebar
+        platforms={orderedPlatforms}
+        active={filters.platform}
+        onSelect={setPlatform}
+        onReorder={reorderPlatforms}
+        showLog={isIt}
+        onOpenLog={() => setLogOpen(true)}
+      />
 
       <div className="lg:pl-64">
         <Header
@@ -102,7 +111,7 @@ export default function SalesPage({ onLogout, user }) {
           loading={loading}
           onRefresh={refresh}
           onLogout={onLogout}
-          onOpenAdmin={isAdmin ? () => setAdminOpen(true) : undefined}
+          onOpenAdmin={canOpenAdmin ? () => setAdminOpen(true) : undefined}
           user={user}
         />
 
@@ -110,7 +119,7 @@ export default function SalesPage({ onLogout, user }) {
 
         <main className="mx-auto max-w-7xl space-y-6 px-4 pt-6 pb-28 sm:px-6">
           <div className="lg:hidden">
-            <PlatformTabs platforms={platforms} active={filters.platform} onSelect={setPlatform} />
+            <PlatformTabs platforms={orderedPlatforms} active={filters.platform} onSelect={setPlatform} />
           </div>
 
           <FilterBar filters={filters} campaigns={campaigns} onChange={onFilterChange} onClear={clearAll} />
@@ -123,12 +132,6 @@ export default function SalesPage({ onLogout, user }) {
             summary && (
               <div className={`space-y-6 transition-opacity ${loading ? "opacity-60" : "opacity-100"}`}>
                 <KpiCards kpi={summary.kpi} records={records} comparisons={comparisons} />
-
-                <TargetCard
-                  actualGmv={summary.kpi.totalGmv}
-                  targetGmv={targetGmv}
-                  month={activeMonth}
-                />
 
                 {aiEnabled && (
                   <AiInsight from={filters.from} to={filters.to} platform={filters.platform} />
@@ -167,13 +170,15 @@ export default function SalesPage({ onLogout, user }) {
 
       <AdminModal
         open={adminOpen}
+        user={user}
         onClose={() => setAdminOpen(false)}
         onChanged={() => {
           refresh();
-          fetchTargets();
           reloadSettings();
         }}
       />
+
+      {isIt && <ActivityLog open={logOpen} onClose={() => setLogOpen(false)} />}
     </div>
   );
 }

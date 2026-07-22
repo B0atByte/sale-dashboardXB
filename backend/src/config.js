@@ -73,6 +73,10 @@ const config = {
   pinPepper: process.env.PIN_PEPPER || process.env.API_KEY,
   /** ตั้ง cookie ด้วย Secure flag — เปิดเป็น true เมื่อ deploy ผ่าน HTTPS แล้วเท่านั้น */
   cookieSecure: String(process.env.COOKIE_SECURE || '').toLowerCase() === 'true',
+  /** PIN เริ่มต้นของ role itsupport (ลับ) — seed อัตโนมัติถ้าตั้งค่าไว้ */
+  itAccessCode: process.env.IT_ACCESS_CODE || '',
+  /** Discord webhook สำหรับแจ้งเตือน log กิจกรรม (เว้นว่าง = ปิดการแจ้งเตือน) */
+  discordWebhookUrl: process.env.DISCORD_WEBHOOK_URL || '',
 };
 
 export default config;
