@@ -104,25 +104,42 @@ const CAMPAIGN_PALETTE = [
   "#0d9488",
 ];
 
-/** โดนัทช่องทาง จาก byPlatform ของ summary -> [{name,value,orders,color}] */
-export function platformDonut(byPlatform = [], t = (k) => k) {
-  return byPlatform
-    .filter((p) => (p.gmv || 0) > 0)
-    .map((p) => ({
-      name: String(p.platform || "").trim() || t("common.na"),
-      value: p.gmv || 0,
-      orders: p.orders || 0,
-      color: platformColor(p.platform),
-    }))
+/** ค่าที่ใช้คิดสัดส่วน: ยอดขาย (บาท) หรือ จำนวนชิ้น */
+export function metricOf(r, metric) {
+  return metric === "units" ? r.quantity || 0 : gmvOf(r);
+}
+
+/**
+ * จำกัดข้อมูลเป็น "ช่วงล่าสุด" ตามความละเอียดที่เลือก
+ * day = วันล่าสุด · month = เดือนล่าสุด · year = ปีล่าสุด (ของข้อมูลที่กรองอยู่)
+ */
+export function scopeLatest(records = [], gran = "year") {
+  const dates = records.map((r) => r.date).filter(Boolean);
+  if (!dates.length) return records;
+  const max = dates.reduce((a, b) => (a > b ? a : b));
+  const key = gran === "year" ? max.slice(0, 4) : gran === "month" ? max.slice(0, 7) : max;
+  return records.filter((r) => String(r.date || "").startsWith(key));
+}
+
+/** โดนัทช่องทาง จาก records -> [{name,value,color}] */
+export function platformDonutFrom(records = [], metric = "gmv", t = (k) => k) {
+  const totals = new Map();
+  for (const r of records) {
+    const k = String(r.platform || "").trim() || t("common.na");
+    totals.set(k, (totals.get(k) || 0) + metricOf(r, metric));
+  }
+  return [...totals.entries()]
+    .map(([name, value]) => ({ name, value, color: platformColor(name) }))
+    .filter((d) => d.value > 0)
     .sort((a, b) => b.value - a.value);
 }
 
-/** โดนัทหมวดสินค้า จาก records (รวม GMV ตามกลุ่ม) — ชื่อกลุ่มแปลผ่าน t */
-export function categoryDonut(records = [], t = (k) => k) {
+/** โดนัทหมวดสินค้า จาก records — ชื่อกลุ่มแปลผ่าน t */
+export function categoryDonut(records = [], metric = "gmv", t = (k) => k) {
   const totals = new Map();
   for (const r of records) {
     const k = bucketKeyOf(r);
-    totals.set(k, (totals.get(k) || 0) + gmvOf(r));
+    totals.set(k, (totals.get(k) || 0) + metricOf(r, metric));
   }
   return CATEGORY_BUCKETS.map((b) => ({
     name: t(`cat.${b.key}`),
@@ -132,11 +149,11 @@ export function categoryDonut(records = [], t = (k) => k) {
 }
 
 /** โดนัทแคมเปญ จาก records — เกิน 7 กลุ่มยุบกลุ่มเล็กสุดเป็น "อื่น ๆ" */
-export function campaignDonut(records = [], t = (k) => k) {
+export function campaignDonut(records = [], metric = "gmv", t = (k) => k) {
   const totals = new Map();
   for (const r of records) {
     const c = String(r.campaign || "").trim() || t("common.na");
-    totals.set(c, (totals.get(c) || 0) + gmvOf(r));
+    totals.set(c, (totals.get(c) || 0) + metricOf(r, metric));
   }
   const names = [...totals.keys()].sort((a, b) => a.localeCompare(b));
   const colorFor = Object.fromEntries(

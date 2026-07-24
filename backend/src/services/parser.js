@@ -51,22 +51,34 @@ function toGregorianYear(year) {
   return year > 2400 ? year - 543 : year;
 }
 
+/** ตรวจว่า ปี/เดือน/วัน สมเหตุสมผล (กันวันที่เพี้ยนหลุดไปโชว์บนกราฟ เช่น 2026-23-07) */
+function validYmd(y, m, d) {
+  return (
+    Number.isInteger(y) && Number.isInteger(m) && Number.isInteger(d) &&
+    y >= 1900 && m >= 1 && m <= 12 && d >= 1 && d <= 31
+  );
+}
+
 /**
  * สร้างวันที่ YYYY-MM-DD จากคอลัมน์ helper Day/Month/Year
- * ถ้าไม่ครบ ให้ fallback ไป parse คอลัมน์ "วันที่" ซึ่งอยู่ในรูป d/m/yyyy
+ * ถ้าไม่ครบ/ไม่ถูกต้อง ให้ fallback ไป parse คอลัมน์ "วันที่"
+ * รองรับทั้ง d/m/yyyy และ m/d/yyyy (บางชีตสาขาใช้ m/d) — สลับให้ถ้าเดือนเกิน 12
+ * ถ้ายังไม่ถูกต้องคืนค่าว่าง (แถวนั้นจะไม่ถูกนำไปคิดตามวันที่)
  */
 function buildDate(dayStr, monthStr, yearStr, rawDateStr) {
   const d = parseInt(dayStr, 10);
   const m = parseInt(monthStr, 10);
-  const y = parseInt(yearStr, 10);
-  if (Number.isInteger(d) && Number.isInteger(m) && Number.isInteger(y) && d >= 1 && m >= 1) {
-    return `${toGregorianYear(y)}-${pad2(m)}-${pad2(d)}`;
+  const y = toGregorianYear(parseInt(yearStr, 10));
+  if (validYmd(y, m, d)) {
+    return `${y}-${pad2(m)}-${pad2(d)}`;
   }
-  // fallback: "วันที่" รูปแบบ d/m/yyyy
   const match = String(rawDateStr ?? '').trim().match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
   if (match) {
-    const [, dd, mm, yyyy] = match;
-    return `${toGregorianYear(parseInt(yyyy, 10))}-${pad2(parseInt(mm, 10))}-${pad2(parseInt(dd, 10))}`;
+    let dd = parseInt(match[1], 10);
+    let mm = parseInt(match[2], 10);
+    const yy = toGregorianYear(parseInt(match[3], 10));
+    if (mm > 12 && dd <= 12) [dd, mm] = [mm, dd]; // ชีตที่เขียนเป็น m/d/yyyy
+    if (validYmd(yy, mm, dd)) return `${yy}-${pad2(mm)}-${pad2(dd)}`;
   }
   return '';
 }

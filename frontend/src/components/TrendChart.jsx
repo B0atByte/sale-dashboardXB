@@ -11,6 +11,7 @@ import {
   ResponsiveContainer,
 } from "recharts";
 import { useLang } from "../i18n";
+import ToggleGroup from "./ToggleGroup";
 import { aggregateTrend } from "../utils/data";
 import {
   formatCurrency,
@@ -30,28 +31,6 @@ function labelFor(key, gran, lang) {
     });
   }
   return formatShortDate(key, lang); // day
-}
-
-/** ปุ่มสลับกลุ่ม */
-function ToggleGroup({ value, onChange, options }) {
-  return (
-    <div className="flex rounded-xl bg-slate-100 p-0.5">
-      {options.map((o) => (
-        <button
-          key={o.v}
-          type="button"
-          onClick={() => onChange(o.v)}
-          className={`rounded-lg px-2.5 py-1 text-[10px] font-black uppercase tracking-wider transition ${
-            value === o.v
-              ? "bg-white text-indigo-600 shadow-sm"
-              : "text-slate-400 hover:text-slate-600"
-          }`}
-        >
-          {o.label}
-        </button>
-      ))}
-    </div>
-  );
 }
 
 /**
@@ -81,34 +60,35 @@ export default function TrendChart({ records = [] }) {
 
   return (
     <section className="rounded-[32px] border border-slate-100 bg-white p-6 shadow-sm">
-      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h2 className="text-2xl font-bold tracking-tighter text-slate-800">
+      {/* หัวการ์ด: ชื่อกับ toggle อยู่บรรทัดเดียวกัน — คำบรรยายลงไปอยู่ใต้หัวข้อ */}
+      <div className="mb-4">
+        <div className="flex items-center justify-between gap-3">
+          <h2 className="min-w-0 truncate text-2xl font-bold tracking-tighter text-slate-800">
             {t("trend.title")}
           </h2>
-          <p className="text-xs font-bold uppercase tracking-wider text-slate-400">
-            {metric === "gmv" ? t("trend.sub") : t("trend.subUnits")}
-          </p>
+          <div className="ml-auto flex shrink-0 items-center gap-1.5">
+            <ToggleGroup
+              value={gran}
+              onChange={setGran}
+              options={[
+                { v: "year", label: t("trend.year") },
+                { v: "month", label: t("trend.month") },
+                { v: "day", label: t("trend.day") },
+              ]}
+            />
+            <ToggleGroup
+              value={metric}
+              onChange={setMetric}
+              options={[
+                { v: "gmv", label: `${t("trend.gmv")} (฿)` },
+                { v: "units", label: `${t("trend.units")} (pcs)` },
+              ]}
+            />
+          </div>
         </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <ToggleGroup
-            value={gran}
-            onChange={setGran}
-            options={[
-              { v: "year", label: t("trend.year") },
-              { v: "month", label: t("trend.month") },
-              { v: "day", label: t("trend.day") },
-            ]}
-          />
-          <ToggleGroup
-            value={metric}
-            onChange={setMetric}
-            options={[
-              { v: "gmv", label: `${t("trend.gmv")} (฿)` },
-              { v: "units", label: `${t("trend.units")} (pcs)` },
-            ]}
-          />
-        </div>
+        <p className="mt-0.5 text-xs font-bold uppercase tracking-wider text-slate-400">
+          {metric === "gmv" ? t("trend.sub") : t("trend.subUnits")}
+        </p>
       </div>
 
       {data.length === 0 ? (

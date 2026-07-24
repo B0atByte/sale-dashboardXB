@@ -22,7 +22,7 @@ import useSalesData, {
   useComparisons,
 } from "../hooks/useSalesData";
 import {
-  platformDonut,
+  platformDonutFrom,
   categoryDonut,
   campaignDonut,
   readPlatformOrder,
@@ -140,11 +140,11 @@ export default function SalesPage({ onLogout, user }) {
                 {/* โดนัท 2 คอลัมน์ */}
                 <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
                   {isOverview ? (
-                    <DonutChart title={t("chart.platformShare")} subtitle={t("chart.platformShareSub")} data={platformDonut(summary.byPlatform, t)} />
+                    <DonutChart title={t("chart.platformShare")} subtitle={t("chart.platformShareSub")} records={records} build={platformDonutFrom} />
                   ) : (
-                    <DonutChart title={t("chart.campaignShare")} subtitle={t("chart.campaignShareSub")} data={campaignDonut(records, t)} />
+                    <DonutChart title={t("chart.campaignShare")} subtitle={t("chart.campaignShareSub")} records={records} build={campaignDonut} />
                   )}
-                  <DonutChart title={t("chart.categoryShare")} subtitle={t("chart.categoryShareSub")} data={categoryDonut(records, t)} />
+                  <DonutChart title={t("chart.categoryShare")} subtitle={t("chart.categoryShareSub")} records={records} build={categoryDonut} />
                 </div>
 
                 {/* แนวโน้ม + Top 5 */}
