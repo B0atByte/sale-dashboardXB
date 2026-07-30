@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useLang } from "../i18n";
 import { useSettings } from "../settings";
-import { platformColor } from "../utils/data";
+import { platformColor, ONLINE_LOCATION } from "../utils/data";
 import { IconActivity, IconGrid, IconStore } from "./Icons";
 import DemoBadge from "./DemoBadge";
 
@@ -13,15 +13,16 @@ import DemoBadge from "./DemoBadge";
  * เลือกเมนู = ตั้งค่าตัวกรอง platform ("ภาพรวม" = ค่าว่าง = ไม่กรองช่องทาง)
  * ลากช่องทางเพื่อจัดลำดับเองได้ (ผ่าน onReorder)
  */
-export default function Sidebar({ platforms = [], active = "", onSelect, onReorder, showLog, onOpenLog, view = "dashboard", onChangeView }) {
+export default function Sidebar({ platforms = [], active = "", onSelect, onReorder, showLog, onOpenLog, view = "dashboard", onChangeView, locations = [] }) {
   const { t } = useLang();
   const { settings } = useSettings();
   const [dragName, setDragName] = useState(null);
   const [overName, setOverName] = useState(null);
 
-  const items = [{ name: "", label: t("nav.overview"), color: "#4f46e5" }].concat(
-    platforms.map((p) => ({ name: p, label: p, color: platformColor(p) }))
-  );
+  // ช่องทางที่เป็น "หน้าร้าน" = ชื่อ platform ตรงกับ location สาขา (ชีตเสริม); ที่เหลือ = ออนไลน์
+  const storeSet = new Set(locations.filter((l) => l && l !== ONLINE_LOCATION));
+  const onlinePlatforms = platforms.filter((p) => !storeSet.has(p));
+  const storePlatforms = platforms.filter((p) => storeSet.has(p));
 
   const handleDrop = (targetName) => {
     setOverName(null);
@@ -34,6 +35,51 @@ export default function Sidebar({ platforms = [], active = "", onSelect, onReord
     onReorder(arr);
     setDragName(null);
   };
+
+  /** ปุ่มช่องทาง 1 รายการ (ใช้ทั้ง ภาพรวม / ออนไลน์ / หน้าร้าน) */
+  const renderItem = (item) => {
+    const isActive = (active || "") === item.name;
+    const canDrag = Boolean(item.name) && Boolean(onReorder);
+    return (
+      <button
+        key={item.name || "overview"}
+        type="button"
+        draggable={canDrag}
+        onDragStart={canDrag ? () => setDragName(item.name) : undefined}
+        onDragEnter={canDrag ? () => setOverName(item.name) : undefined}
+        onDragOver={canDrag ? (e) => e.preventDefault() : undefined}
+        onDrop={canDrag ? (e) => { e.preventDefault(); handleDrop(item.name); } : undefined}
+        onDragEnd={() => { setDragName(null); setOverName(null); }}
+        onClick={() => onSelect(item.name)}
+        className={`group/nav flex w-full items-center gap-3 rounded-2xl px-3 py-2.5 text-left text-xs font-bold uppercase tracking-wider transition active:scale-[0.98] ${
+          isActive
+            ? "bg-slate-800 text-white shadow-lg shadow-slate-200"
+            : "text-slate-500 hover:bg-slate-50"
+        } ${dragName === item.name ? "opacity-40" : ""} ${
+          overName === item.name && dragName !== item.name ? "ring-2 ring-indigo-300" : ""
+        }`}
+      >
+        <span
+          className="h-2.5 w-2.5 shrink-0 rounded-full"
+          style={{ backgroundColor: item.color }}
+        />
+        <span className="truncate">{item.label}</span>
+        {canDrag && (
+          <span
+            className={`ml-auto shrink-0 cursor-grab select-none text-[13px] leading-none opacity-0 transition group-hover/nav:opacity-100 ${
+              isActive ? "text-slate-400" : "text-slate-300"
+            }`}
+            title={t("nav.dragHint")}
+          >
+            ⠿
+          </span>
+        )}
+      </button>
+    );
+  };
+
+  const groupLabel = "px-3 pb-1 pt-3 text-[10px] font-black uppercase tracking-widest text-slate-400";
+  const subLabel = "px-3 pb-1 pt-2 text-[9px] font-black uppercase tracking-[2px] text-slate-300";
 
   return (
     <aside className="fixed inset-y-0 left-0 z-30 hidden w-64 flex-col border-r border-slate-100 bg-white lg:flex">
@@ -82,49 +128,30 @@ export default function Sidebar({ platforms = [], active = "", onSelect, onReord
           </>
         )}
 
-        <p className="px-3 pb-1 pt-3 text-[10px] font-black uppercase tracking-widest text-slate-400">
-          {t("nav.section")}
-        </p>
-        {items.map((item) => {
-          const isActive = (active || "") === item.name;
-          const canDrag = Boolean(item.name) && Boolean(onReorder);
-          return (
-            <button
-              key={item.name || "overview"}
-              type="button"
-              draggable={canDrag}
-              onDragStart={canDrag ? () => setDragName(item.name) : undefined}
-              onDragEnter={canDrag ? () => setOverName(item.name) : undefined}
-              onDragOver={canDrag ? (e) => e.preventDefault() : undefined}
-              onDrop={canDrag ? (e) => { e.preventDefault(); handleDrop(item.name); } : undefined}
-              onDragEnd={() => { setDragName(null); setOverName(null); }}
-              onClick={() => onSelect(item.name)}
-              className={`group/nav flex w-full items-center gap-3 rounded-2xl px-3 py-2.5 text-left text-xs font-bold uppercase tracking-wider transition active:scale-[0.98] ${
-                isActive
-                  ? "bg-slate-800 text-white shadow-lg shadow-slate-200"
-                  : "text-slate-500 hover:bg-slate-50"
-              } ${dragName === item.name ? "opacity-40" : ""} ${
-                overName === item.name && dragName !== item.name ? "ring-2 ring-indigo-300" : ""
-              }`}
-            >
-              <span
-                className="h-2.5 w-2.5 shrink-0 rounded-full"
-                style={{ backgroundColor: item.color }}
-              />
-              <span className="truncate">{item.label}</span>
-              {canDrag && (
-                <span
-                  className={`ml-auto shrink-0 cursor-grab select-none text-[13px] leading-none opacity-0 transition group-hover/nav:opacity-100 ${
-                    isActive ? "text-slate-400" : "text-slate-300"
-                  }`}
-                  title={t("nav.dragHint")}
-                >
-                  ⠿
-                </span>
-              )}
-            </button>
-          );
-        })}
+        <p className={groupLabel}>{t("nav.section")}</p>
+
+        {/* ภาพรวม (รวมทุกช่องทาง) */}
+        {renderItem({ name: "", label: t("nav.overview"), color: "#4f46e5" })}
+
+        {/* กลุ่มออนไลน์ */}
+        {onlinePlatforms.length > 0 && (
+          <>
+            <p className={subLabel}>{t("nav.groupOnline")}</p>
+            {onlinePlatforms.map((p) =>
+              renderItem({ name: p, label: p, color: platformColor(p) })
+            )}
+          </>
+        )}
+
+        {/* กลุ่มหน้าร้าน */}
+        {storePlatforms.length > 0 && (
+          <>
+            <p className={subLabel}>{t("nav.groupStore")}</p>
+            {storePlatforms.map((p) =>
+              renderItem({ name: p, label: p, color: platformColor(p) })
+            )}
+          </>
+        )}
       </nav>
 
       {/* ปุ่ม Log กิจกรรม (เฉพาะ itsupport) */}

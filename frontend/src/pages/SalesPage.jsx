@@ -108,6 +108,7 @@ export default function SalesPage({ onLogout, user }) {
         onOpenLog={() => setLogOpen(true)}
         view={view}
         onChangeView={setView}
+        locations={locations}
       />
 
       <div className="lg:pl-64">
@@ -148,7 +149,7 @@ export default function SalesPage({ onLogout, user }) {
           ) : (
           <>
           <div className="lg:hidden">
-            <PlatformTabs platforms={orderedPlatforms} active={filters.platform} onSelect={setPlatform} />
+            <PlatformTabs platforms={orderedPlatforms} active={filters.platform} onSelect={setPlatform} locations={locations} />
           </div>
 
           <FilterBar filters={filters} campaigns={campaigns} locations={locations} onChange={onFilterChange} onClear={clearAll} />
