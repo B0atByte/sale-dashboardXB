@@ -196,3 +196,54 @@ export function IconTarget({ className = "" }) {
     </svg>
   );
 }
+
+export function IconGlobe({ className = "" }) {
+  return (
+    <svg className={className} {...BASE}>
+      <circle cx="12" cy="12" r="9" />
+      <path d="M3 12h18" />
+      <path d="M12 3a15 15 0 0 1 0 18a15 15 0 0 1 0-18z" />
+    </svg>
+  );
+}
+
+export function IconBuilding({ className = "" }) {
+  return (
+    <svg className={className} {...BASE}>
+      <rect x="5" y="3" width="14" height="18" rx="1.5" />
+      <path d="M9 7h.01M12 7h.01M15 7h.01M9 11h.01M12 11h.01M15 11h.01M9 15h.01M15 15h.01" />
+      <path d="M11 21v-3.5a1 1 0 0 1 2 0V21" />
+    </svg>
+  );
+}
+
+export function IconCoffee({ className = "" }) {
+  return (
+    <svg className={className} {...BASE}>
+      <path d="M4 9h13v5a5 5 0 0 1-5 5H9a5 5 0 0 1-5-5z" />
+      <path d="M17 10h2.5a2.5 2.5 0 0 1 0 5H17" />
+      <path d="M8 2c-.5 1 .5 1.7 0 3M12 2c-.5 1 .5 1.7 0 3" />
+    </svg>
+  );
+}
+
+export function IconStore({ className = "" }) {
+  return (
+    <svg className={className} {...BASE}>
+      <path d="M4 4h16l1 5a3 3 0 0 1-5.5 1.7A3 3 0 0 1 12 12a3 3 0 0 1-3.5-1.3A3 3 0 0 1 3 9z" />
+      <path d="M5 11v9h14v-9" />
+      <path d="M10 20v-5h4v5" />
+    </svg>
+  );
+}
+
+export function IconGrid({ className = "" }) {
+  return (
+    <svg className={className} {...BASE}>
+      <rect x="3" y="3" width="7" height="7" rx="1" />
+      <rect x="14" y="3" width="7" height="7" rx="1" />
+      <rect x="3" y="14" width="7" height="7" rx="1" />
+      <rect x="14" y="14" width="7" height="7" rx="1" />
+    </svg>
+  );
+}

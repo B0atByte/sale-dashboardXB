@@ -25,9 +25,11 @@ const PRESETS = [
  * การ์ดตัวกรอง: ช่วงวันที่ + ปุ่มลัด + หมวดสินค้า + แคมเปญ + ค้นหาสินค้า
  * ทุกช่องมีผลทันที (ช่องค้นหาสินค้า debounce 400ms)
  */
-export default function FilterBar({ filters, campaigns = [], onChange, onClear }) {
+export default function FilterBar({ filters, campaigns = [], locations = [], onChange, onClear }) {
   const { t } = useLang();
   const [productInput, setProductInput] = useState(filters.product || "");
+  // ป้ายชื่อ location: แปล "ออนไลน์" ตามภาษา, สาขาอื่นแสดงชื่อตรง ๆ
+  const locLabel = (l) => (l === "ออนไลน์" ? t("loc.online") : l);
 
   // ซิงก์ช่องค้นหาเมื่อถูกล้างจากภายนอก
   useEffect(() => {
@@ -78,6 +80,19 @@ export default function FilterBar({ filters, campaigns = [], onChange, onClear }
             })}
           </div>
         </div>
+
+        {/* Location (สาขา) — โชว์เมื่อมีมากกว่า 1 แหล่ง เช่น ออนไลน์ + Central World */}
+        {locations.length > 1 && (
+          <div className="flex flex-col gap-2">
+            <span className={labelClass}>{t("filter.location")}</span>
+            <select value={filters.location || ""} onChange={(e) => onChange({ location: e.target.value })} className={`${inputClass} min-w-40 cursor-pointer`}>
+              <option value="">{t("filter.all")}</option>
+              {locations.map((l) => (
+                <option key={l} value={l}>{locLabel(l)}</option>
+              ))}
+            </select>
+          </div>
+        )}
 
         {/* หมวดสินค้า */}
         <div className="flex flex-col gap-2">

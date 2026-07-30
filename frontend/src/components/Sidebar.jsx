@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useLang } from "../i18n";
 import { useSettings } from "../settings";
 import { platformColor } from "../utils/data";
-import { IconActivity } from "./Icons";
+import { IconActivity, IconGrid, IconStore } from "./Icons";
 import DemoBadge from "./DemoBadge";
 
 /**
@@ -13,7 +13,7 @@ import DemoBadge from "./DemoBadge";
  * เลือกเมนู = ตั้งค่าตัวกรอง platform ("ภาพรวม" = ค่าว่าง = ไม่กรองช่องทาง)
  * ลากช่องทางเพื่อจัดลำดับเองได้ (ผ่าน onReorder)
  */
-export default function Sidebar({ platforms = [], active = "", onSelect, onReorder, showLog, onOpenLog }) {
+export default function Sidebar({ platforms = [], active = "", onSelect, onReorder, showLog, onOpenLog, view = "dashboard", onChangeView }) {
   const { t } = useLang();
   const { settings } = useSettings();
   const [dragName, setDragName] = useState(null);
@@ -54,6 +54,34 @@ export default function Sidebar({ platforms = [], active = "", onSelect, onReord
 
       {/* เมนูช่องทาง */}
       <nav className="thin-scrollbar flex-1 space-y-1 overflow-y-auto px-4 py-2">
+        {/* สลับมุมมอง: แดชบอร์ด / เมนูหน้าร้าน */}
+        {onChangeView && (
+          <>
+            <p className="px-3 pb-1 pt-3 text-[10px] font-black uppercase tracking-widest text-slate-400">
+              {t("nav.views")}
+            </p>
+            {[
+              { v: "dashboard", label: t("nav.dashboard"), Icon: IconGrid },
+              { v: "menu", label: t("nav.mainMenu"), Icon: IconStore },
+            ].map((it) => {
+              const on = view === it.v;
+              return (
+                <button
+                  key={it.v}
+                  type="button"
+                  onClick={() => onChangeView(it.v)}
+                  className={`flex w-full items-center gap-3 rounded-2xl px-3 py-2.5 text-left text-xs font-bold uppercase tracking-wider transition active:scale-[0.98] ${
+                    on ? "bg-slate-800 text-white shadow-lg shadow-slate-200" : "text-slate-500 hover:bg-slate-50"
+                  }`}
+                >
+                  <it.Icon className={`h-4 w-4 shrink-0 ${on ? "text-white" : "text-slate-400"}`} />
+                  <span className="truncate">{it.label}</span>
+                </button>
+              );
+            })}
+          </>
+        )}
+
         <p className="px-3 pb-1 pt-3 text-[10px] font-black uppercase tracking-widest text-slate-400">
           {t("nav.section")}
         </p>

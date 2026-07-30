@@ -21,6 +21,9 @@ export class SheetFetchError extends Error {
   }
 }
 
+// ป้าย location ของแหล่งหลัก (ช่องทางออนไลน์ทั้งหมด) — ชีตเสริมใช้ชื่อ platform ของตัวเองเป็น location (= สาขา)
+export const ONLINE_LOCATION = 'ออนไลน์';
+
 // สถานะ cache ภายใน module (in-memory)
 let cache = null; // { records: [...], updatedAt: string(ISO), expiresAt: number(epoch ms) }
 let inflight = null; // promise ของการ fetch ที่กำลังทำงานอยู่ (ถ้ามี)
@@ -44,13 +47,17 @@ async function fetchCsv(url) {
  */
 async function refresh() {
   const records = parseSheetCsv(await fetchCsv(getSheetUrl()));
+  for (const r of records) r.location = ONLINE_LOCATION; // แหล่งหลัก = ช่องทางออนไลน์
 
   for (const src of getExtraSources()) {
     try {
       const extra = parseSheetCsv(await fetchCsv(src.url));
       const tag = src.platform || '';
       for (const r of extra) {
-        if (tag) r.platform = tag; // แปะ platform ของชีตนี้ (แบบ B: ทั้งชีต = platform เดียว)
+        if (tag) {
+          r.platform = tag; // แปะ platform ของชีตนี้ (แบบ B: ทั้งชีต = platform เดียว)
+          r.location = tag; // ชีตเสริม = 1 สาขา (location = ชื่อ platform)
+        }
         r.id = `${tag || 'x'}-${r.id}`; // กัน id ชนกับแหล่งหลัก/ชีตอื่น
         records.push(r);
       }

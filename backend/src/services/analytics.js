@@ -38,10 +38,14 @@ export function bucketKeyOf(record) {
  * - campaign: เทียบ case-insensitive + trim
  * - product: ค้นหาชื่อสินค้าแบบ substring (case-insensitive)
  */
-export function applyFilters(records, { from, to, platform, category, campaign, product } = {}) {
+export function applyFilters(records, { from, to, platform, category, campaign, product, location } = {}) {
   let out = records;
   if (from) out = out.filter((r) => r.date >= from);
   if (to) out = out.filter((r) => r.date <= to);
+  if (location) {
+    const want = String(location).trim().toLowerCase();
+    out = out.filter((r) => String(r.location || '').trim().toLowerCase() === want);
+  }
   if (platform) {
     const want = String(platform).trim().toLowerCase();
     out = out.filter((r) => r.platform.trim().toLowerCase() === want);
@@ -73,8 +77,10 @@ export function computeSummary(records) {
   const byProduct = new Map();
   const byPlatformMap = new Map();
   const campaignSet = new Set();
+  const locationSet = new Set();
 
   for (const r of records) {
+    if (r.location) locationSet.add(String(r.location).trim());
     // "ยอดขาย" อ้างอิงฟิลด์ gmv ที่ route ใส่มา (ตามตั้งค่า) ไม่งั้น fallback เป็นราคาขาย
     const g = r.gmv ?? r.lineTotal;
     totalGmv += g;
@@ -125,5 +131,6 @@ export function computeSummary(records) {
         units: round2(pl.units),
       })),
     campaigns: [...campaignSet].sort((a, b) => a.localeCompare(b)),
+    locations: [...locationSet].sort((a, b) => a.localeCompare(b)),
   };
 }

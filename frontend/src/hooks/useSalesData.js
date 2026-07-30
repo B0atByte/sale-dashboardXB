@@ -11,10 +11,11 @@ async function fetchJson(url, signal) {
 }
 
 /** ประกอบ query string จากตัวกรองที่มีค่า */
-function buildQuery({ from, to, platform, category, campaign, product } = {}) {
+function buildQuery({ from, to, platform, category, campaign, product, location } = {}) {
   const params = new URLSearchParams();
   if (from) params.set("from", from);
   if (to) params.set("to", to);
+  if (location) params.set("location", location);
   if (platform) params.set("platform", platform);
   if (category) params.set("category", category);
   if (campaign) params.set("campaign", campaign);
@@ -67,7 +68,7 @@ export default function useSalesData(filters, refreshMs = REFRESH_INTERVAL_MS) {
       }
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [filters.from, filters.to, filters.platform, filters.category, filters.campaign, filters.product]
+    [filters.from, filters.to, filters.platform, filters.category, filters.campaign, filters.product, filters.location]
   );
 
   useEffect(() => {
@@ -96,7 +97,7 @@ export default function useSalesData(filters, refreshMs = REFRESH_INTERVAL_MS) {
  * ดึงตัวเลือกฟิลเตอร์จาก summary แบบไม่กรอง (ช่องทาง + แคมเปญ) — เรียกครั้งเดียวตอน mount
  */
 export function useFilterOptions() {
-  const [options, setOptions] = useState({ platforms: [], campaigns: [] });
+  const [options, setOptions] = useState({ platforms: [], campaigns: [], locations: [] });
 
   useEffect(() => {
     const controller = new AbortController();
@@ -107,7 +108,11 @@ export function useFilterOptions() {
           .sort((a, b) => (b.gmv || 0) - (a.gmv || 0))
           .map((p) => String(p.platform || "").trim())
           .filter(Boolean);
-        setOptions({ platforms, campaigns: data.campaigns ?? [] });
+        setOptions({
+          platforms,
+          campaigns: data.campaigns ?? [],
+          locations: data.locations ?? [],
+        });
       })
       .catch(() => {});
     return () => controller.abort();

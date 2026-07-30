@@ -13,6 +13,53 @@ export function gmvOf(r) {
   return r.gmv ?? r.lineTotal ?? 0;
 }
 
+// ชื่อสาขา Central World (ใช้เทียบแบบ contains กันสะกดเว้นวรรคต่างกัน)
+export const CENTRAL_WORLD = "Central World Branch";
+export const ONLINE_LOCATION = "ออนไลน์";
+
+/** แถวนี้เป็นของสาขา Central World ไหม (ดูจาก location ก่อน แล้ว fallback ไป platform) */
+export function isCentralWorld(r) {
+  return String(r.location || r.platform || "")
+    .trim()
+    .toLowerCase()
+    .includes("central world");
+}
+
+/** แถวนี้เป็น "เมล็ดกาแฟ" (Beans/Export) ไหม — ดูจากชื่อสินค้า + หมวด */
+export function isBeanExport(r) {
+  const text = `${r.productName || ""} ${r.category || ""}`.toLowerCase();
+  return text.includes("bean") || text.includes("export") || text.includes("เมล็ด");
+}
+
+/**
+ * สรุปผู้บริหาร 3 กล่อง จาก records (เคารพตัวกรองที่ส่งเข้ามา):
+ * - online  = ทุกช่องทาง ยกเว้น Central World
+ * - central = เฉพาะ Central World Branch
+ * - beans   = สินค้าเมล็ดกาแฟ (Beans/Export) รวมทั้งออนไลน์และหน้าร้าน
+ * แต่ละกล่องคืน { gmv, units, orders }
+ */
+export function execSummaryFrom(records = []) {
+  const blank = () => ({ gmv: 0, units: 0, orders: new Set() });
+  const online = blank();
+  const central = blank();
+  const beans = blank();
+  for (const r of records) {
+    const g = gmvOf(r);
+    const q = r.quantity || 0;
+    const bucket = isCentralWorld(r) ? central : online;
+    bucket.gmv += g;
+    bucket.units += q;
+    if (r.orderNo) bucket.orders.add(r.orderNo);
+    if (isBeanExport(r)) {
+      beans.gmv += g;
+      beans.units += q;
+      if (r.orderNo) beans.orders.add(r.orderNo);
+    }
+  }
+  const fin = (b) => ({ gmv: b.gmv, units: b.units, orders: b.orders.size });
+  return { online: fin(online), central: fin(central), beans: fin(beans) };
+}
+
 // สีประจำช่องทาง (คีย์เป็นชื่อ trimmed + lowercase)
 const PLATFORM_COLOR_MAP = {
   shopee: "#ea580c",

@@ -8,6 +8,8 @@ import Header from "../components/Header";
 import PlatformTabs from "../components/PlatformTabs";
 import FilterBar from "../components/FilterBar";
 import KpiCards from "../components/KpiCards";
+import ExecutiveSummary from "../components/ExecutiveSummary";
+import MainMenu from "../components/MainMenu";
 import DonutChart from "../components/DonutChart";
 import TrendChart from "../components/TrendChart";
 import TopProducts from "../components/TopProducts";
@@ -37,6 +39,7 @@ const EMPTY_FILTERS = {
   category: "",
   campaign: "",
   product: "",
+  location: "",
 };
 
 /**
@@ -50,10 +53,11 @@ export default function SalesPage({ onLogout, user }) {
   const [filters, setFilters] = useState(EMPTY_FILTERS);
   const [adminOpen, setAdminOpen] = useState(false);
   const [logOpen, setLogOpen] = useState(false);
+  const [view, setView] = useState("dashboard"); // "dashboard" | "menu"
 
   const { records, summary, updatedAt, stale, loading, error, refresh } =
     useSalesData(filters, settings.refreshIntervalMs);
-  const { platforms, campaigns } = useFilterOptions();
+  const { platforms, campaigns, locations } = useFilterOptions();
 
   // ลำดับช่องทางที่ผู้ใช้จัดเอง (ลากใน sidebar) — จำใน localStorage
   const [platformOrder, setPlatformOrder] = useState(readPlatformOrder);
@@ -73,7 +77,7 @@ export default function SalesPage({ onLogout, user }) {
   }, [records]);
   const comparisons = useComparisons(filters, dateSpan);
 
-  const filtersKey = `${filters.from}|${filters.to}|${filters.platform}|${filters.category}|${filters.campaign}|${filters.product}`;
+  const filtersKey = `${filters.from}|${filters.to}|${filters.platform}|${filters.category}|${filters.campaign}|${filters.product}|${filters.location}`;
   const isOverview = !filters.platform;
   const isFirstLoad = loading && !summary;
   const activeLabel = filters.platform || t("nav.overview");
@@ -98,10 +102,12 @@ export default function SalesPage({ onLogout, user }) {
       <Sidebar
         platforms={orderedPlatforms}
         active={filters.platform}
-        onSelect={setPlatform}
+        onSelect={(p) => { setPlatform(p); setView("dashboard"); }}
         onReorder={reorderPlatforms}
         showLog={isIt}
         onOpenLog={() => setLogOpen(true)}
+        view={view}
+        onChangeView={setView}
       />
 
       <div className="lg:pl-64">
@@ -118,11 +124,34 @@ export default function SalesPage({ onLogout, user }) {
         {loading && summary && <LoadingBadge label={activeLabel} />}
 
         <main className="mx-auto max-w-7xl space-y-6 px-4 pt-6 pb-28 sm:px-6">
+          {/* สลับมุมมองบนจอเล็ก (จอใหญ่ใช้ปุ่มใน Sidebar) */}
+          <div className="flex gap-2 lg:hidden">
+            {[
+              { v: "dashboard", label: t("nav.dashboard") },
+              { v: "menu", label: t("nav.mainMenu") },
+            ].map((it) => (
+              <button
+                key={it.v}
+                type="button"
+                onClick={() => setView(it.v)}
+                className={`flex-1 rounded-2xl px-4 py-2.5 text-xs font-black uppercase tracking-wider transition active:scale-95 ${
+                  view === it.v ? "bg-slate-800 text-white shadow-lg shadow-slate-200" : "border border-slate-100 bg-white text-slate-500"
+                }`}
+              >
+                {it.label}
+              </button>
+            ))}
+          </div>
+
+          {view === "menu" ? (
+            <MainMenu onBack={() => setView("dashboard")} />
+          ) : (
+          <>
           <div className="lg:hidden">
             <PlatformTabs platforms={orderedPlatforms} active={filters.platform} onSelect={setPlatform} />
           </div>
 
-          <FilterBar filters={filters} campaigns={campaigns} onChange={onFilterChange} onClear={clearAll} />
+          <FilterBar filters={filters} campaigns={campaigns} locations={locations} onChange={onFilterChange} onClear={clearAll} />
 
           {error && <ErrorBanner onRetry={refresh} />}
 
@@ -131,6 +160,8 @@ export default function SalesPage({ onLogout, user }) {
           ) : (
             summary && (
               <div className={`space-y-6 transition-opacity ${loading ? "opacity-60" : "opacity-100"}`}>
+                {isOverview && <ExecutiveSummary records={records} />}
+
                 <KpiCards kpi={summary.kpi} records={records} comparisons={comparisons} />
 
                 {aiEnabled && (
@@ -158,6 +189,8 @@ export default function SalesPage({ onLogout, user }) {
                 <SalesTable records={records} filtersKey={filtersKey} />
               </div>
             )
+          )}
+          </>
           )}
         </main>
 
