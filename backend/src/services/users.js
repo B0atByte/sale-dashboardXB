@@ -12,6 +12,34 @@ const store = createStore('users.json', null); // ไม่มีไฟล์ �
 export const ROLES = ['itsupport', 'admin', 'viewer'];
 const ROLE_RANK = { viewer: 1, admin: 2, itsupport: 3 };
 
+/**
+ * สิทธิ์เข้าถึงข้อมูลแบบเจาะจงต่อผู้ใช้ (นอกเหนือจาก role) — บังคับที่เซิร์ฟเวอร์
+ * รูปแบบ: { overview?: boolean, allow?: string[], deny?: string[] }
+ * - overview=false → ผู้ใช้ไม่เห็นหน้า "ภาพรวม" (เด้งเข้า Dashboard ช่องทางแรกเลย)
+ * - allow (whitelist) → เห็นเฉพาะแพลตฟอร์มในลิสต์
+ * - deny (blacklist)  → เห็นทุกแพลตฟอร์มยกเว้นในลิสต์
+ * เทียบชื่อแพลตฟอร์มแบบ trim + ตัวพิมพ์เล็ก (ชีตมีทั้ง "Shopee" และ "stripe")
+ */
+const normPlatform = (s) => String(s || '').trim().toLowerCase();
+
+/** กรอง records ตามสิทธิ์ผู้ใช้ (ไม่มี access → เห็นทั้งหมด) — บังคับฝั่งเซิร์ฟเวอร์ */
+export function filterByAccess(records, access) {
+  if (!access || (!access.allow?.length && !access.deny?.length)) return records;
+  const allow = (access.allow || []).map(normPlatform);
+  const deny = (access.deny || []).map(normPlatform);
+  return records.filter((r) => {
+    const p = normPlatform(r.platform);
+    if (allow.length && !allow.includes(p)) return false;
+    if (deny.length && deny.includes(p)) return false;
+    return true;
+  });
+}
+
+/** ผู้ใช้เห็นหน้า "ภาพรวม" ได้ไหม (ไม่มี access → เห็นได้) */
+export function canSeeOverview(access) {
+  return !access || access.overview !== false;
+}
+
 /** ระดับสิทธิ์ของ role (ยิ่งมากยิ่งสูง) */
 export function roleRank(role) {
   return ROLE_RANK[role] || 0;
@@ -101,7 +129,7 @@ export function listUsers(callerRole) {
   const rank = roleRank(callerRole);
   return ensureSeed()
     .filter((u) => rank > 0 && roleRank(u.role) <= rank)
-    .map((u) => ({ username: u.username, role: u.role }));
+    .map((u) => ({ username: u.username, role: u.role, access: u.access || null }));
 }
 
 /** ตรวจ username + PIN → คืน {username, role} หรือ null (อัปเกรด hash เก่า→scrypt อัตโนมัติเมื่อผ่าน) */
@@ -121,7 +149,7 @@ export function verifyUser(username, pin) {
       /* อัปเกรดครั้งหน้า */
     }
   }
-  return { username: u.username, role: u.role };
+  return { username: u.username, role: u.role, access: u.access || null };
 }
 
 /** เพิ่มผู้ใช้ใหม่ */

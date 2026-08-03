@@ -7,9 +7,13 @@ export function round2(n) {
   return Math.round(n * 100) / 100;
 }
 
-/** จัดหมวดสินค้าเป็นคีย์ 1 ใน 3 กลุ่ม (ตรงกับฝั่ง frontend) */
+/** จัดหมวดสินค้าเป็นคีย์ 1 ใน 4 กลุ่ม (ตรงกับฝั่ง frontend: tea/studio/consumables/accessories) */
 export function bucketKeyOf(record) {
   const text = `${record.productName || ''} ${record.category || ''}`.toLowerCase();
+  // TEA มาก่อน (ชาอาจมาในซองเหมือนกัน จะได้ไม่ถูกนับเป็น consumables)
+  if (text.includes('tea')) {
+    return 'tea';
+  }
   if (
     text.includes('midnight black') ||
     text.includes('moonlight white') ||

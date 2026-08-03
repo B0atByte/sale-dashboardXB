@@ -62,38 +62,16 @@ export default function ExecutiveSummary({ records = [] }) {
         return (
           <div
             key={c.key}
-            className={`group relative overflow-hidden rounded-[32px] border border-slate-100 bg-white p-6 shadow-sm ring-1 ${c.ring} transition-all hover:-translate-y-1 hover:shadow-xl`}
+            className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition-colors hover:border-slate-300"
           >
-            <div className="flex items-start justify-between gap-3">
-              <div className="min-w-0">
-                <h3 className="text-[11px] font-black uppercase tracking-widest text-slate-400">
-                  {c.label}
-                </h3>
-                <p className="mt-0.5 truncate text-[11px] font-bold text-slate-400">
-                  {c.sub}
-                </p>
-              </div>
+            <div className="flex items-center justify-between gap-3">
               <span
-                className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl ${c.chip}`}
+                className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg ${c.chip}`}
               >
-                <c.Icon className="h-5 w-5" />
-              </span>
-            </div>
-
-            <p className="mt-5 text-3xl font-bold tracking-tight text-slate-800 lg:text-[2.6rem] lg:leading-none">
-              {formatCurrency(c.data.gmv)}
-            </p>
-
-            <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] font-bold text-slate-500">
-              <span>
-                {formatNumber(c.data.orders)} {t("exec.orders")}
-              </span>
-              <span className="text-slate-300">·</span>
-              <span>
-                {formatNumber(c.data.units)} {t("exec.units")}
+                <c.Icon className="h-[18px] w-[18px]" />
               </span>
               <span
-                className={`ml-auto rounded-md px-2 py-1 text-[10px] font-black ${c.chip}`}
+                className="rounded-md bg-slate-100 px-2 py-0.5 text-xs font-medium tabular-nums text-slate-500"
                 title={c.cross ? t("exec.crossShare") : t("exec.share")}
               >
                 {c.cross ? "≈ " : ""}
@@ -101,8 +79,24 @@ export default function ExecutiveSummary({ records = [] }) {
               </span>
             </div>
 
+            <h3 className="mt-4 text-sm font-medium text-slate-500">{c.label}</h3>
+            <p className="mt-1 text-3xl font-semibold tracking-tight text-slate-900 tabular-nums">
+              {formatCurrency(c.data.gmv)}
+            </p>
+            <p className="mt-1 truncate text-xs text-slate-400">{c.sub}</p>
+
+            <div className="mt-4 flex items-center gap-3 border-t border-slate-100 pt-3 text-xs text-slate-500">
+              <span className="tabular-nums">
+                {formatNumber(c.data.orders)} {t("exec.orders")}
+              </span>
+              <span className="text-slate-300">·</span>
+              <span className="tabular-nums">
+                {formatNumber(c.data.units)} {t("exec.units")}
+              </span>
+            </div>
+
             {/* แถบสัดส่วนบาง ๆ ด้านล่างการ์ด */}
-            <div className="mt-4 h-1.5 w-full overflow-hidden rounded-full bg-slate-100">
+            <div className="mt-3 h-1 w-full overflow-hidden rounded-full bg-slate-100">
               <div
                 className={`h-full rounded-full ${c.bar}`}
                 style={{ width: `${Math.min(100, pct)}%` }}

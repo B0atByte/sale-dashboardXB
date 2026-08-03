@@ -26,8 +26,8 @@ function ComparisonTag({ label, currentValue, prevValue, prefix = "" }) {
   const isPos = pct >= 0;
 
   return (
-    <div className="flex flex-col gap-1 rounded-2xl border border-slate-100/50 bg-slate-50 p-2.5 transition-all hover:bg-white">
-      <span className="text-[9px] font-bold uppercase tracking-tight text-slate-400">{label}</span>
+    <div className="flex flex-col gap-1 rounded-lg border border-slate-200 bg-slate-50/70 p-2.5 transition-colors hover:bg-white">
+      <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">{label}</span>
       <div
         className={`flex w-fit items-center rounded-md px-1.5 py-0.5 text-[10px] font-bold ${
           isPos ? "bg-emerald-50 text-emerald-600" : "bg-rose-50 text-rose-600"
@@ -83,16 +83,16 @@ export default function KpiCards({ kpi, records = [], comparisons }) {
   return (
     <section className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
       {cards.map((c) => (
-        <div key={c.label} className="group flex flex-col rounded-[32px] border border-slate-100 bg-white p-6 shadow-sm transition-all hover:-translate-y-1 hover:shadow-xl">
+        <div key={c.label} className="group flex flex-col rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition-colors hover:border-slate-300">
           <div className="flex items-start justify-between">
-            <h3 className="text-[11px] font-black uppercase tracking-widest text-slate-400">{c.label}</h3>
-            <div className="opacity-20 transition-opacity group-hover:opacity-60">
+            <h3 className="text-sm font-medium text-slate-500">{c.label}</h3>
+            <div className="opacity-30 transition-opacity group-hover:opacity-70">
               <Sparkline data={c.spark || []} />
             </div>
           </div>
-          <p className="mt-4 text-3xl font-bold tracking-tight text-slate-800 lg:text-4xl">{c.value}</p>
+          <p className="mt-3 text-3xl font-semibold tracking-tight text-slate-900 tabular-nums lg:text-4xl">{c.value}</p>
           {comparisons && (
-            <div className="mt-4 grid grid-cols-3 gap-2 border-t border-slate-50 pt-4">
+            <div className="mt-4 grid grid-cols-3 gap-2 border-t border-slate-100 pt-4">
               <ComparisonTag label="VS LY" currentValue={c.curr} prevValue={comparisons.ly?.[c.metric]} prefix={c.prefix} />
               <ComparisonTag label="VS LM" currentValue={c.curr} prevValue={comparisons.lm?.[c.metric]} prefix={c.prefix} />
               <ComparisonTag label="VS LW" currentValue={c.curr} prevValue={comparisons.lw?.[c.metric]} prefix={c.prefix} />

@@ -2,8 +2,7 @@ import { useState } from "react";
 import { useLang } from "../i18n";
 import { useSettings } from "../settings";
 import { platformColor, ONLINE_LOCATION } from "../utils/data";
-import { IconActivity, IconGrid, IconStore } from "./Icons";
-import DemoBadge from "./DemoBadge";
+import { IconActivity, IconGrid, IconCoffee } from "./Icons";
 
 /**
  * แถบเมนูด้านซ้าย (sidebar) — แสดงเฉพาะจอใหญ่ (lg ขึ้นไป)
@@ -13,7 +12,7 @@ import DemoBadge from "./DemoBadge";
  * เลือกเมนู = ตั้งค่าตัวกรอง platform ("ภาพรวม" = ค่าว่าง = ไม่กรองช่องทาง)
  * ลากช่องทางเพื่อจัดลำดับเองได้ (ผ่าน onReorder)
  */
-export default function Sidebar({ platforms = [], active = "", onSelect, onReorder, showLog, onOpenLog, view = "dashboard", onChangeView, locations = [] }) {
+export default function Sidebar({ platforms = [], active = "", onSelect, onReorder, showLog, onOpenLog, view = "dashboard", onChangeView, locations = [], showOverview = true }) {
   const { t } = useLang();
   const { settings } = useSettings();
   const [dragName, setDragName] = useState(null);
@@ -94,7 +93,6 @@ export default function Sidebar({ platforms = [], active = "", onSelect, onReord
           <h1 className="text-sm font-bold leading-tight tracking-tight text-slate-800">
             {settings.brandTitle}
           </h1>
-          {settings.showDemo && <DemoBadge className="mt-1" />}
         </div>
       </div>
 
@@ -108,7 +106,7 @@ export default function Sidebar({ platforms = [], active = "", onSelect, onReord
             </p>
             {[
               { v: "dashboard", label: t("nav.dashboard"), Icon: IconGrid },
-              { v: "menu", label: t("nav.mainMenu"), Icon: IconStore },
+              { v: "menu", label: t("nav.mainMenu"), Icon: IconCoffee },
             ].map((it) => {
               const on = view === it.v;
               return (
@@ -130,24 +128,24 @@ export default function Sidebar({ platforms = [], active = "", onSelect, onReord
 
         <p className={groupLabel}>{t("nav.section")}</p>
 
-        {/* ภาพรวม (รวมทุกช่องทาง) */}
-        {renderItem({ name: "", label: t("nav.overview"), color: "#4f46e5" })}
+        {/* ภาพรวม (รวมทุกช่องทาง) — ซ่อนสำหรับผู้ใช้ที่ไม่มีสิทธิ์เห็นภาพรวม */}
+        {showOverview && renderItem({ name: "", label: t("nav.overview"), color: "#4f46e5" })}
+
+        {/* กลุ่มหน้าร้าน (ไว้บน) */}
+        {storePlatforms.length > 0 && (
+          <>
+            <p className={subLabel}>{t("nav.groupStore")}</p>
+            {storePlatforms.map((p) =>
+              renderItem({ name: p, label: p, color: platformColor(p) })
+            )}
+          </>
+        )}
 
         {/* กลุ่มออนไลน์ */}
         {onlinePlatforms.length > 0 && (
           <>
             <p className={subLabel}>{t("nav.groupOnline")}</p>
             {onlinePlatforms.map((p) =>
-              renderItem({ name: p, label: p, color: platformColor(p) })
-            )}
-          </>
-        )}
-
-        {/* กลุ่มหน้าร้าน */}
-        {storePlatforms.length > 0 && (
-          <>
-            <p className={subLabel}>{t("nav.groupStore")}</p>
-            {storePlatforms.map((p) =>
               renderItem({ name: p, label: p, color: platformColor(p) })
             )}
           </>

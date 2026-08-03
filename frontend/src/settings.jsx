@@ -12,7 +12,6 @@ const DEFAULTS = {
   refreshIntervalMs: 60000,
   brandTitle: "xBloom Sale Dashboard",
   brandFooter: "© 2026 xBloomXCasalapin",
-  showDemo: true,
 };
 
 const SettingsContext = createContext({

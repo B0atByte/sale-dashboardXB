@@ -23,6 +23,11 @@ services:
       - PORT=3001
       # Cap V8 heap below mem_limit so Node GCs instead of the container OOM-killing.
       - NODE_OPTIONS=--max-old-space-size=384
+      # Sessions in Redis → แชร์ข้ามหลาย replica ได้ (ไม่ตั้ง = ใช้ in-memory)
+      - REDIS_URL=redis://redis:6379
+    depends_on:
+      redis:
+        condition: service_healthy
     # Resource ceilings: the backend holds the whole sheet dataset + session maps
     # in memory; without limits an unbounded process could OOM-kill the host.
     mem_limit: 512m
@@ -80,5 +85,28 @@ services:
       retries: 3
       start_period: 10s
 
+  # Redis — เก็บ session ให้แชร์ข้ามหลาย replica (ภายในเครือข่าย compose เท่านั้น ไม่เปิดพอร์ตออกนอก)
+  redis:
+    image: redis:7-alpine
+    command: ["redis-server", "--appendonly", "yes", "--save", "", "--maxmemory", "128mb", "--maxmemory-policy", "noeviction"]
+    volumes:
+      - xbloom-redis:/data
+    mem_limit: 192m
+    cpus: 0.5
+    pids_limit: 64
+    restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 5s
+
 volumes:
   xbloom-data:
+  xbloom-redis:

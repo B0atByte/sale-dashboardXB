@@ -1,7 +1,56 @@
 import { useCallback, useEffect, useState } from "react";
 import { useLang } from "../i18n";
 import { useSettings } from "../settings";
-import { IconX, IconSettings } from "./Icons";
+import { IconX, IconSettings, IconDocument, IconCoffee } from "./Icons";
+
+/**
+ * เอกสารแหล่งข้อมูล (หน้า Document) — อธิบายว่าแดชบอร์ดอ่านคอลัมน์ไหนของชีตไหน (ตัวอักษรคอลัมน์จริง)
+ * โดย "ไม่แสดงลิงก์ Google Sheets" (ตามข้อกำหนดความปลอดภัย)
+ * ระบบจับคอลัมน์จาก "ชื่อหัวคอลัมน์" ไม่ใช่ตำแหน่งตายตัว — ตัวอักษร (C/AM/BF...) คือตำแหน่ง ณ ปัจจุบัน
+ */
+const DATA_DOCS = [
+  {
+    sheet: "xBloom Sales Update",
+    tab: "Sales",
+    columns: [
+      { col: "C", header: "วันที่", use: "วันที่ (สำรอง)" },
+      { col: "D", header: "แพลตฟอร์มขาย", use: "ช่องทาง" },
+      { col: "E", header: "ชื่อลูกค้า", use: "ลูกค้า" },
+      { col: "F", header: "หมายเลขคำสั่งซื้อ / INV", use: "เลขออเดอร์" },
+      { col: "G", header: "เลขที่ใบเสร็จ (VTEC)", use: "เลขออเดอร์ (สำรอง)" },
+      { col: "L", header: "สินค้า", use: "ชื่อสินค้า (สำรอง)" },
+      { col: "M", header: "รหัสสินค้า (S/N) (CODE)", use: "รหัสสินค้า (สำรอง)" },
+      { col: "O", header: "จำนวน", use: "จำนวนชิ้น" },
+      { col: "P", header: "ราคาสินค้าขาย", use: "ยอดขาย (lineTotal)" },
+      { col: "AK", header: "รายรับจากคำสั่งซื้อ", use: "รายรับสุทธิ" },
+      { col: "AM", header: "ราคาคีย์ VTEC", use: "ยอดขาย — ค่าที่ใช้จริง", active: true },
+      { col: "BA–BC", header: "Day · Month · Year", use: "สร้างวันที่ (หลัก)" },
+      { col: "BD", header: "Product ID", use: "รหัสสินค้า (หลัก)" },
+      { col: "BE", header: "Product Name", use: "ชื่อสินค้า (หลัก)" },
+      { col: "BF", header: "Categroy", use: "หมวดสินค้า (รวม Tea)" },
+      { col: "BG", header: "Campaign", use: "แคมเปญ" },
+    ],
+  },
+  {
+    sheet: "Central World Branch",
+    tab: "Store/Togo",
+    columns: [
+      { col: "B", header: "วันที่", use: "วันที่ (สำรอง)" },
+      { col: "C", header: "แพลตฟอร์มขาย", use: "ช่องทาง" },
+      { col: "D", header: "ชื่อลูกค้า", use: "ลูกค้า" },
+      { col: "E", header: "หมายเลขคำสั่งซื้อ / INV", use: "เลขออเดอร์" },
+      { col: "F", header: "เลขที่ใบเสร็จ (VTEC)", use: "เลขออเดอร์ (สำรอง)" },
+      { col: "K", header: "สินค้า", use: "ชื่อสินค้า (สำรอง)" },
+      { col: "N", header: "จำนวน", use: "จำนวนชิ้น" },
+      { col: "O", header: "ราคาสินค้าขาย", use: "ยอดขาย (lineTotal)" },
+      { col: "AE", header: "รายรับจากคำสั่งซื้อ", use: "รายรับสุทธิ" },
+      { col: "AG", header: "ราคาคีย์ VTEC", use: "ยอดขาย — ค่าที่ใช้จริง", active: true },
+      { col: "AK–AM", header: "Day · Month · Year", use: "สร้างวันที่ (หลัก)" },
+      { col: "AN", header: "Product Name", use: "ชื่อสินค้า (หลัก)" },
+      { col: "AO", header: "Category", use: "หมวดสินค้า" },
+    ],
+  },
+];
 
 /**
  * Admin Panel (เฉพาะ admin) — แบบแท็บ:
@@ -86,7 +135,6 @@ export default function AdminModal({ open, user, onClose, onChanged }) {
         body: JSON.stringify({
           brandTitle: gen.brandTitle,
           brandFooter: gen.brandFooter,
-          showDemo: gen.showDemo,
           cacheTtlSeconds: Number(gen.cacheTtlSeconds),
           refreshIntervalMs: Number(gen.refreshIntervalMs),
           gmvField: gen.gmvField,
@@ -239,6 +287,7 @@ export default function AdminModal({ open, user, onClose, onChanged }) {
     ...(isIt ? [{ k: "source", label: t("settings.tabSource") }] : []),
     { k: "targets", label: t("settings.tabTargets") },
     { k: "users", label: t("settings.tabUsers") },
+    { k: "document", label: t("settings.tabDocument") },
   ];
 
   return (
@@ -281,10 +330,6 @@ export default function AdminModal({ open, user, onClose, onChanged }) {
               <input value={gen.brandTitle} onChange={(e) => setGen((s) => ({ ...s, brandTitle: e.target.value }))} className={`${field} w-full`} />
               <label className={`${label} mt-3`}>{t("settings.footerText")}</label>
               <input value={gen.brandFooter} onChange={(e) => setGen((s) => ({ ...s, brandFooter: e.target.value }))} className={`${field} w-full`} />
-              <label className="mt-3 flex cursor-pointer items-center gap-2 text-xs font-bold text-slate-600">
-                <input type="checkbox" checked={gen.showDemo} onChange={(e) => setGen((s) => ({ ...s, showDemo: e.target.checked }))} className="h-4 w-4 accent-indigo-600" />
-                {t("settings.demo")}
-              </label>
             </div>
 
             <div>
@@ -455,6 +500,111 @@ export default function AdminModal({ open, user, onClose, onChanged }) {
             {uStatus && (
               <p className={`mt-2 text-xs font-bold ${uStatus.type === "success" ? "text-emerald-600" : "text-rose-500"}`}>{uStatus.msg}</p>
             )}
+          </div>
+        )}
+
+        {/* ===== เอกสารแหล่งข้อมูล (Document) — พจนานุกรมข้อมูล สไตล์หัวข้อเดียวกับแท็บอื่น ===== */}
+        {tab === "document" && (
+          <div className="space-y-6">
+            {/* หัวเอกสาร */}
+            <div className="flex items-start gap-2.5 border-b border-slate-100 pb-4">
+              <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-slate-800 text-white">
+                <IconDocument className="h-4 w-4" />
+              </span>
+              <div>
+                <h2 className="text-sm font-bold tracking-tight text-slate-800">{t("doc.docTitle")}</h2>
+                <p className="mt-0.5 text-xs leading-relaxed text-slate-500">{t("doc.desc")}</p>
+              </div>
+            </div>
+
+            {/* แต่ละชีต = หนึ่งหัวข้อ (ใช้สไตล์ heading เดียวกับแท็บอื่น) */}
+            {DATA_DOCS.map((d, i) => (
+              <section key={d.sheet}>
+                <h3 className={heading}>
+                  {t("doc.sheet")} {i + 1} — {d.sheet}
+                </h3>
+                <p className="-mt-2 mb-2 text-[11px] font-bold text-slate-400">
+                  {t("doc.tab")}: <span className="text-slate-600">{d.tab}</span>
+                </p>
+                <div className="overflow-x-auto rounded-xl border border-slate-100">
+                  <table className="w-full border-collapse text-left text-[11px]">
+                    <thead>
+                      <tr className="bg-slate-50 text-[9px] font-black uppercase tracking-widest text-slate-400">
+                        <th className="px-3 py-2">{t("doc.hCol")}</th>
+                        <th className="px-3 py-2">{t("doc.hHeader")}</th>
+                        <th className="px-3 py-2">{t("doc.hUse")}</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {d.columns.map((c) => (
+                        <tr
+                          key={c.col}
+                          className={`border-t border-slate-100 ${c.active ? "bg-indigo-50/60" : ""}`}
+                        >
+                          <td className="px-3 py-2 align-top">
+                            <span
+                              className={`inline-block rounded px-1.5 py-0.5 font-black ${
+                                c.active ? "bg-indigo-600 text-white" : "bg-slate-100 text-slate-500"
+                              }`}
+                            >
+                              {c.col}
+                            </span>
+                          </td>
+                          <td className="px-3 py-2 align-top font-bold text-slate-700">{c.header}</td>
+                          <td className={`px-3 py-2 align-top ${c.active ? "font-bold text-indigo-700" : "text-slate-500"}`}>
+                            {c.use}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </section>
+            ))}
+
+            {/* รายงานเมล็ดกาแฟ — เป็นอีกหนึ่งหัวข้อ (สไตล์เดียวกัน โทนนิวทรัล) */}
+            <section>
+              <h3 className={heading}>{t("doc.beanTitle")}</h3>
+              <div className="space-y-2 rounded-xl border border-slate-100 p-4 text-[11px] leading-relaxed text-slate-500">
+                <p>{t("doc.beanDesc")}</p>
+                <div className="flex gap-2">
+                  <span className="w-14 shrink-0 pt-0.5 text-[9px] font-black uppercase tracking-widest text-slate-400">
+                    {t("doc.beanRuleLabel")}
+                  </span>
+                  <span className="flex-1">{t("doc.beanRule")}</span>
+                </div>
+                <div className="flex gap-2">
+                  <span className="w-14 shrink-0 pt-0.5 text-[9px] font-black uppercase tracking-widest text-slate-400">
+                    {t("doc.beanFilterLabel")}
+                  </span>
+                  <span className="flex-1">{t("doc.beanFilters")}</span>
+                </div>
+                <div className="flex gap-2">
+                  <span className="w-14 shrink-0 pt-0.5 text-[9px] font-black uppercase tracking-widest text-slate-400">
+                    {t("doc.hCol")}
+                  </span>
+                  <div className="flex flex-1 flex-wrap gap-1.5">
+                    {["Product Name", "Category", "จำนวน", "ราคาคีย์ VTEC", "แพลตฟอร์มขาย", "วันที่"].map((c) => (
+                      <span
+                        key={c}
+                        className="rounded border border-slate-100 bg-slate-50 px-1.5 py-0.5 font-medium text-slate-600"
+                      >
+                        {c}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </section>
+
+            {/* ท้ายเอกสาร */}
+            <div className="space-y-3 border-t border-slate-100 pt-4">
+              <p className="text-[11px] leading-relaxed text-slate-400">{t("doc.note")}</p>
+              <div className="flex items-center gap-2 rounded-xl bg-slate-50 px-4 py-3">
+                <span className="text-sm font-black text-slate-400">→</span>
+                <p className="text-xs font-bold text-slate-600">{t("doc.combined")}</p>
+              </div>
+            </div>
           </div>
         )}
 

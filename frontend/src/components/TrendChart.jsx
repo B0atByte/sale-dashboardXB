@@ -35,10 +35,23 @@ function labelFor(key, gran, lang) {
 
 /**
  * กราฟแนวโน้ม — เลือกความละเอียด (ปี/เดือน/วัน) และเมตริก (ยอดขาย/ชิ้น)
+ *
+ * ความละเอียด (gran) ควบคุมภายในเองได้ หรือให้ parent คุมผ่าน prop `gran`/`onGranChange`
+ * (ใช้ตอนอยากให้ toggle เดียวคุมทั้งกราฟและส่วนอื่นของหน้า)
+ * - showGranToggle=false: ซ่อนปุ่มเลือกช่วงในการ์ด (เหลือแค่ปุ่มเมตริก)
+ * - title: แทนหัวข้อเริ่มต้น
  */
-export default function TrendChart({ records = [] }) {
+export default function TrendChart({
+  records = [],
+  gran: granProp,
+  onGranChange,
+  showGranToggle = true,
+  title,
+}) {
   const { t, lang } = useLang();
-  const [gran, setGran] = useState("day");
+  const [granState, setGranState] = useState("day");
+  const gran = granProp ?? granState;
+  const setGran = onGranChange ?? setGranState;
   const [metric, setMetric] = useState("gmv");
 
   const data = aggregateTrend(records, gran, metric).map((d) => ({
@@ -64,18 +77,20 @@ export default function TrendChart({ records = [] }) {
       <div className="mb-4">
         <div className="flex items-center justify-between gap-3">
           <h2 className="min-w-0 truncate text-2xl font-bold tracking-tighter text-slate-800">
-            {t("trend.title")}
+            {title ?? t("trend.title")}
           </h2>
           <div className="ml-auto flex shrink-0 items-center gap-1.5">
-            <ToggleGroup
-              value={gran}
-              onChange={setGran}
-              options={[
-                { v: "year", label: t("trend.year") },
-                { v: "month", label: t("trend.month") },
-                { v: "day", label: t("trend.day") },
-              ]}
-            />
+            {showGranToggle && (
+              <ToggleGroup
+                value={gran}
+                onChange={setGran}
+                options={[
+                  { v: "year", label: t("trend.year") },
+                  { v: "month", label: t("trend.month") },
+                  { v: "day", label: t("trend.day") },
+                ]}
+              />
+            )}
             <ToggleGroup
               value={metric}
               onChange={setMetric}

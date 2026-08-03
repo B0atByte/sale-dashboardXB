@@ -2,7 +2,6 @@ import { useLang } from "../i18n";
 import { useSettings } from "../settings";
 import { formatTime } from "../utils/format";
 import { IconRefresh, IconLogout, IconSettings } from "./Icons";
-import DemoBadge from "./DemoBadge";
 
 /**
  * แถบหัวเรื่องด้านบนของคอลัมน์เนื้อหา: ปุ่มสลับภาษา + เวลาอัปเดต + ปุ่มรีเฟรช
@@ -27,7 +26,6 @@ export default function Header({ updatedAt, stale, loading, onRefresh, onLogout,
               <h1 className="text-lg font-bold tracking-tighter text-slate-800">
                 {settings.brandTitle}
               </h1>
-              {settings.showDemo && <DemoBadge />}
             </div>
             <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">
               {t("brand.subtitle")}

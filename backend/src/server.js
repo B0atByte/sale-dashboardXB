@@ -8,7 +8,7 @@
 import express from 'express';
 import config from './config.js';
 import apiKeyAuth from './middleware/apiKey.js';
-import { requireSession, requireRole } from './middleware/session.js';
+import { attachUser, requireSession, requireRole } from './middleware/session.js';
 import { apiLimiter, freshLimiter, aiLimiter } from './middleware/rateLimit.js';
 import authRouter from './routes/auth.js';
 import salesRouter from './routes/sales.js';
@@ -22,6 +22,15 @@ app.set('trust proxy', 1); // อยู่หลัง nginx — ให้ req.i
 app.disable('x-powered-by');
 app.use(express.json());
 
+// body ที่ไม่ใช่ JSON ที่ถูกต้อง -> ตอบ 400 (ไม่ใช่ 500) โดยไม่หลุด stack
+// eslint-disable-next-line no-unused-vars
+app.use((err, _req, res, next) => {
+  if (err?.type === 'entity.parse.failed' || err instanceof SyntaxError) {
+    return res.status(400).json({ error: 'invalid_json' });
+  }
+  next(err);
+});
+
 // Health check — ไม่ต้องใช้ API key (Docker healthcheck เรียกเส้นทางนี้)
 app.get('/api/health', (_req, res) => {
   res.json({ ok: true });
@@ -32,6 +41,9 @@ app.use('/api', apiLimiter);
 
 // ตั้งแต่นี้ไป ทุก /api ต้องมี x-api-key (nginx แนบให้ฝั่งเซิร์ฟเวอร์)
 app.use('/api', apiKeyAuth);
+
+// โหลด session แปะไว้ที่ req.user (memory/Redis) ก่อนทุก route — getUser() อ่านค่านี้
+app.use('/api', attachUser);
 
 // เส้นทางล็อกอิน — ต้องมี x-api-key แต่ยังไม่ต้องมี session
 app.use('/api', authRouter);

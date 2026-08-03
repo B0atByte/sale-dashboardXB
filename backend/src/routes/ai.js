@@ -10,6 +10,8 @@ import { getSalesData } from '../services/sheets.js';
 import { chatCompletion, aiEnabled, AiError } from '../services/ai.js';
 import { applyFilters } from '../services/analytics.js';
 import { getSettings } from '../services/settings.js';
+import { getUser } from '../middleware/session.js';
+import { filterByAccess } from '../services/users.js';
 
 const router = Router();
 
@@ -124,7 +126,8 @@ function aiBudgetExceeded() {
 router.get('/insight', async (req, res) => {
   try {
     const { records } = await getSalesData();
-    const filtered = applyFilters(records, req.query);
+    const scoped = filterByAccess(records, getUser(req)?.access);
+    const filtered = applyFilters(scoped, req.query);
     const digest = buildDigest(filtered, req.query);
     const lang = langOf(req);
 
@@ -158,9 +161,10 @@ router.post('/chat', async (req, res) => {
     if (!question) return res.status(400).json({ error: 'empty_question' });
     if (aiBudgetExceeded()) return res.status(429).json({ error: 'ai_daily_limit' });
 
-    // แชตใช้ข้อมูล "ทั้งหมด" เป็น context เพื่อตอบได้ทุกคำถาม
+    // แชตใช้ข้อมูล "ทั้งหมด (ที่ผู้ใช้มีสิทธิ์)" เป็น context เพื่อตอบได้ทุกคำถาม
     const { records } = await getSalesData();
-    const digest = buildDigest(records, {});
+    const scoped = filterByAccess(records, getUser(req)?.access);
+    const digest = buildDigest(scoped, {});
     const lang = langOf(req);
 
     const answer = await chatCompletion(

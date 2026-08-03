@@ -9,7 +9,7 @@ import PlatformTabs from "../components/PlatformTabs";
 import FilterBar from "../components/FilterBar";
 import KpiCards from "../components/KpiCards";
 import ExecutiveSummary from "../components/ExecutiveSummary";
-import MainMenu from "../components/MainMenu";
+import BeansReport from "../components/BeansReport";
 import DonutChart from "../components/DonutChart";
 import TrendChart from "../components/TrendChart";
 import TopProducts from "../components/TopProducts";
@@ -82,9 +82,19 @@ export default function SalesPage({ onLogout, user }) {
   const isFirstLoad = loading && !summary;
   const activeLabel = filters.platform || t("nav.overview");
 
+  // สิทธิ์เห็นหน้า "ภาพรวม" — ผู้ใช้ specific access (overview=false) ให้เด้งเข้า Dashboard ช่องทางแรก
+  const canOverview = user?.access?.overview !== false;
+
   const setPlatform = (platform) => setFilters((f) => ({ ...f, platform }));
   const onFilterChange = (patch) => setFilters((f) => ({ ...f, ...patch }));
   const clearAll = () => setFilters(EMPTY_FILTERS);
+
+  // ถ้าไม่มีสิทธิ์เห็นภาพรวม แต่ยังไม่ได้เลือกช่องทาง → เลือกช่องทางแรกที่มีสิทธิ์ให้อัตโนมัติ
+  useEffect(() => {
+    if (!canOverview && !filters.platform && orderedPlatforms.length > 0) {
+      setFilters((f) => ({ ...f, platform: orderedPlatforms[0] }));
+    }
+  }, [canOverview, filters.platform, orderedPlatforms]);
 
   // เช็คว่า backend เปิดใช้ AI ไหม
   const [aiEnabled, setAiEnabled] = useState(false);
@@ -109,6 +119,7 @@ export default function SalesPage({ onLogout, user }) {
         view={view}
         onChangeView={setView}
         locations={locations}
+        showOverview={canOverview}
       />
 
       <div className="lg:pl-64">
@@ -145,11 +156,11 @@ export default function SalesPage({ onLogout, user }) {
           </div>
 
           {view === "menu" ? (
-            <MainMenu onBack={() => setView("dashboard")} />
+            <BeansReport />
           ) : (
           <>
           <div className="lg:hidden">
-            <PlatformTabs platforms={orderedPlatforms} active={filters.platform} onSelect={setPlatform} locations={locations} />
+            <PlatformTabs platforms={orderedPlatforms} active={filters.platform} onSelect={setPlatform} locations={locations} showOverview={canOverview} />
           </div>
 
           <FilterBar filters={filters} campaigns={campaigns} locations={locations} onChange={onFilterChange} onClear={clearAll} />
@@ -161,7 +172,7 @@ export default function SalesPage({ onLogout, user }) {
           ) : (
             summary && (
               <div className={`space-y-6 transition-opacity ${loading ? "opacity-60" : "opacity-100"}`}>
-                {isOverview && <ExecutiveSummary records={records} />}
+                {isOverview && canOverview && <ExecutiveSummary records={records} />}
 
                 <KpiCards kpi={summary.kpi} records={records} comparisons={comparisons} />
 

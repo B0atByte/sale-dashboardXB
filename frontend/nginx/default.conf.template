@@ -4,6 +4,7 @@
 server {
     listen 80;
     server_name _;
+    server_tokens off;   # ไม่เปิดเผยเวอร์ชัน nginx ใน header/หน้า error
 
     root /usr/share/nginx/html;
     index index.html;
@@ -17,6 +18,9 @@ server {
     add_header Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'" always;
     # HSTS: เปิดบรรทัดนี้เมื่อ deploy ผ่าน HTTPS แล้วเท่านั้น
     # add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
+    # ห้าม cache HTML (index.html / SPA fallback) — บังคับเบราว์เซอร์เช็คเวอร์ชันใหม่ทุกครั้ง
+    # กันปัญหา "deploy แล้วยังเห็นหน้าเก่า". ไฟล์ asset ที่มี hash override เป็น immutable ใน location /assets/
+    add_header Cache-Control "no-cache" always;
 
     # gzip เบื้องต้นสำหรับไฟล์ static
     gzip on;

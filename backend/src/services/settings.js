@@ -11,7 +11,6 @@ const DEFAULTS = {
   refreshIntervalMs: 60000,
   brandTitle: 'xBloom Sale Dashboard',
   brandFooter: '© 2026 xBloomXCasalapin',
-  showDemo: true,
 };
 
 export function getSettings() {
@@ -45,9 +44,6 @@ export function setSettings(patch = {}) {
   }
   if (typeof patch.brandFooter === 'string') {
     next.brandFooter = patch.brandFooter.slice(0, 120);
-  }
-  if (typeof patch.showDemo === 'boolean') {
-    next.showDemo = patch.showDemo;
   }
 
   store.write(next);

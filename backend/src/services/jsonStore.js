@@ -1,25 +1,25 @@
 /**
- * jsonStore.js — ชั้นเก็บข้อมูล JSON กลาง (แทน read/writeFileSync ที่เคยกระจายอยู่ 4 service)
+ * jsonStore.js — ชั้นเก็บข้อมูลกลาง (ตอนนี้ backed ด้วย SQLite ผ่าน node:sqlite)
  *
- * หลักการความปลอดภัยของข้อมูล:
- * - อ่าน: ไฟล์ยังไม่มี (ENOENT) → คืนค่า fallback ; ไฟล์ "เสีย" (parse พัง / EIO / EACCES) → โยน error
- *   ห้ามกลืน error เงียบ ๆ แล้วคืน "ว่าง" เพราะจะทำให้ผู้เรียกเข้าใจผิดว่า "ยังไม่มีข้อมูล"
- *   แล้วเขียนทับของจริงทิ้ง (เคยเป็นบั๊กที่ users ถูกลบทั้งตารางเมื่อไฟล์เสียชั่วคราว)
- * - เขียน: เขียนลงไฟล์ชั่วคราวก่อนแล้ว rename ทับ (atomic) — ถ้า process ถูก kill
- *   กลางการเขียน (deploy / OOM / ไฟดับ) ไฟล์เดิมยังอยู่ครบ ไม่เหลือไฟล์ครึ่ง ๆ กลาง ๆ
+ * ทำไมเป็น SQLite (แทนไฟล์ JSON แยก): เขียนเป็น transaction atomic จริง (ไม่มีไฟล์ครึ่ง ๆ),
+ * ทนไฟดับ, สำรอง/กู้คืนเป็นไฟล์เดียว (data/xbloom.db) — คง "สัญญา" เดิมของ createStore ไว้ครบ:
+ *   - อ่าน: ไม่มีข้อมูล (และไม่มีไฟล์เดิม) → คืน fallback ; ข้อมูลเสีย (parse พัง) → โยน DataStoreError
+ *   - เขียน: atomic (SQLite รับประกันเอง)
+ * ผู้เรียก (users/settings/targets/source/activity) ใช้ create(...).read()/.write() เหมือนเดิมทุกอย่าง
  *
- * หมายเหตุ: การเขียนทั้งหมดในโปรเจกต์นี้เป็นแบบ synchronous ภายใน process เดียว
- * จึงไม่มีการ interleave กันเอง (ไม่มี lost update ในเครื่องเดียว). การล็อกข้าม process
- * (สำหรับหลาย replica) เป็นงานของเฟส Redis/DB ในอนาคต
+ * การย้ายข้อมูลเดิม (JSON → DB): ทำอัตโนมัติครั้งแรกที่อ่านแต่ละ key
+ *   ไฟล์ data/<name>.json เดิมจะถูกอ่านเข้ามาแล้วเปลี่ยนชื่อเป็น .migrated (ไม่ลบ เผื่อ rollback)
  */
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { DatabaseSync } from 'node:sqlite';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 export const DATA_DIR = path.resolve(__dirname, '..', '..', 'data');
+const DB_FILE = path.join(DATA_DIR, 'xbloom.db');
 
-/** error เฉพาะกรณีไฟล์ข้อมูลอ่าน/parse ไม่ได้ (แยกจากกรณี "ไฟล์ยังไม่มี") */
+/** error เฉพาะกรณีข้อมูลอ่าน/parse ไม่ได้ (แยกจากกรณี "ยังไม่มีข้อมูล") */
 export class DataStoreError extends Error {
   constructor(message, cause) {
     super(message);
@@ -32,39 +32,85 @@ function clone(value) {
   return value === undefined ? undefined : structuredClone(value);
 }
 
+// เปิด DB เดียวใช้ร่วมกันทั้ง process
+fs.mkdirSync(DATA_DIR, { recursive: true });
+const db = new DatabaseSync(DB_FILE);
+db.exec('PRAGMA journal_mode = WAL');
+db.exec('PRAGMA foreign_keys = ON');
+db.exec('CREATE TABLE IF NOT EXISTS kv (name TEXT PRIMARY KEY, value TEXT NOT NULL, updated_at TEXT)');
+
+const selStmt = db.prepare('SELECT value FROM kv WHERE name = ?');
+const upStmt = db.prepare(
+  'INSERT INTO kv (name, value, updated_at) VALUES (?, ?, ?) ' +
+    'ON CONFLICT(name) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at'
+);
+
 /**
- * สร้าง store สำหรับไฟล์ JSON หนึ่งไฟล์ในโฟลเดอร์ data/
- * @param {string} fileName เช่น 'users.json'
- * @param {*} fallback ค่าที่คืนเมื่อ "ไฟล์ยังไม่มี" (คนละกรณีกับไฟล์เสีย)
+ * ย้ายไฟล์ JSON เดิม (data/<fileName>) เข้า DB — คืน object ที่ย้าย หรือ undefined ถ้าไม่มีไฟล์เดิม
+ * ไฟล์เดิมเสีย (parse ไม่ได้) → โยน DataStoreError (fail closed เหมือนพฤติกรรมเดิม)
+ */
+function migrateLegacy(fileName) {
+  const legacy = path.join(DATA_DIR, fileName);
+  let raw;
+  try {
+    raw = fs.readFileSync(legacy, 'utf8');
+  } catch (err) {
+    if (err && err.code === 'ENOENT') return undefined;
+    throw new DataStoreError(`อ่านไฟล์เดิมไม่ได้: ${fileName}`, err);
+  }
+  let parsed;
+  try {
+    parsed = JSON.parse(raw);
+  } catch (err) {
+    throw new DataStoreError(`ไฟล์เดิมเสีย (parse ไม่ได้): ${fileName}`, err);
+  }
+  upStmt.run(fileName, JSON.stringify(parsed), new Date().toISOString());
+  try {
+    fs.renameSync(legacy, `${legacy}.migrated`); // กันย้ายซ้ำ ไม่ลบเผื่อ rollback
+  } catch {
+    /* ไม่เป็นไร — ครั้งหน้า kv มีแล้วจะไม่ย้ายซ้ำ */
+  }
+  return parsed;
+}
+
+/**
+ * สร้าง store สำหรับ "หนึ่งชุดข้อมูล" (ชื่อเดิมเป็นชื่อไฟล์ เช่น 'users.json')
+ * @param {string} fileName คีย์ของชุดข้อมูล (คงชื่อไฟล์เดิมไว้เพื่อความเข้ากันได้/การย้าย)
+ * @param {*} fallback ค่าที่คืนเมื่อยังไม่มีข้อมูล (คนละกรณีกับข้อมูลเสีย)
  */
 export function createStore(fileName, fallback) {
-  const FILE = path.join(DATA_DIR, fileName);
   return {
-    file: FILE,
+    file: DB_FILE,
+    key: fileName,
 
-    /** อ่าน: ไม่มีไฟล์ → fallback ; ไฟล์เสีย → โยน DataStoreError */
+    /** อ่าน: ไม่มีข้อมูล → (ย้ายจากไฟล์เดิมถ้ามี ไม่งั้น) fallback ; ข้อมูลเสีย → โยน DataStoreError */
     read() {
-      let raw;
-      try {
-        raw = fs.readFileSync(FILE, 'utf8');
-      } catch (err) {
-        if (err && err.code === 'ENOENT') return clone(fallback);
-        throw new DataStoreError(`อ่านไฟล์ข้อมูลไม่ได้: ${fileName}`, err);
+      const row = selStmt.get(fileName);
+      if (row === undefined) {
+        const migrated = migrateLegacy(fileName);
+        return migrated === undefined ? clone(fallback) : migrated;
       }
       try {
-        return JSON.parse(raw);
+        return JSON.parse(row.value);
       } catch (err) {
-        throw new DataStoreError(`ไฟล์ข้อมูลเสีย (parse ไม่ได้): ${fileName}`, err);
+        throw new DataStoreError(`ข้อมูลใน DB เสีย (parse ไม่ได้): ${fileName}`, err);
       }
     },
 
-    /** เขียนแบบ atomic: เขียนไฟล์ชั่วคราวก่อนแล้ว rename ทับ */
+    /** เขียนแบบ atomic (SQLite upsert) */
     write(value) {
-      fs.mkdirSync(DATA_DIR, { recursive: true });
-      const tmp = `${FILE}.${process.pid}.tmp`;
-      fs.writeFileSync(tmp, JSON.stringify(value, null, 2), 'utf8');
-      fs.renameSync(tmp, FILE);
+      upStmt.run(fileName, JSON.stringify(value), new Date().toISOString());
       return value;
     },
   };
+}
+
+// ย้ายข้อมูลเดิมทั้งหมดตั้งแต่ตอนบูต (ให้ DB พร้อมทันที) — ไฟล์เสียก็ log แล้วไปต่อ
+// (ผู้เรียกจะเจอ DataStoreError ตอน read จริงของ key นั้นเอง = fail closed เฉพาะจุด)
+for (const f of ['users.json', 'settings.json', 'targets.json', 'source.json', 'sources.json', 'activity.json']) {
+  try {
+    if (selStmt.get(f) === undefined) migrateLegacy(f);
+  } catch (err) {
+    console.error(`[store] ย้ายข้อมูลเดิม ${f} ไม่สำเร็จ: ${err.message}`);
+  }
 }

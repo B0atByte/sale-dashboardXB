@@ -53,7 +53,7 @@ router.get('/session', (req, res) => {
   res.json({ authenticated: Boolean(u), user: u });
 });
 
-router.post('/login', (req, res) => {
+router.post('/login', async (req, res) => {
   const ip = req.ip || 'unknown';
   const { username, pin } = req.body || {};
   const uname = String(username || '-').trim() || '-';
@@ -67,7 +67,7 @@ router.post('/login', (req, res) => {
   const user = verifyUser(username, pin);
   if (user) {
     attempts.delete(ip);
-    issueSession(res, user);
+    await issueSession(res, user);
     logActivity({ type: 'login_success', actor: user.username, role: user.role, ip });
     return res.json({ ok: true, user });
   }
@@ -77,9 +77,9 @@ router.post('/login', (req, res) => {
   return res.status(401).json({ error: 'invalid_credentials' });
 });
 
-router.post('/logout', (req, res) => {
+router.post('/logout', async (req, res) => {
   const u = getUser(req);
-  clearSession(req, res);
+  await clearSession(req, res);
   if (u) logActivity({ type: 'logout', actor: u.username, role: u.role, ip: req.ip || 'unknown' });
   res.json({ ok: true });
 });

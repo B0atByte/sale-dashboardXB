@@ -7,6 +7,8 @@ import { Router } from 'express';
 import { getSalesData, SheetFetchError } from '../services/sheets.js';
 import { applyFilters, computeSummary } from '../services/analytics.js';
 import { getSettings } from '../services/settings.js';
+import { getUser } from '../middleware/session.js';
+import { filterByAccess } from '../services/users.js';
 
 const router = Router();
 
@@ -34,7 +36,9 @@ function handleError(err, res) {
 router.get('/sales', async (req, res) => {
   try {
     const { records, updatedAt, fromCache, stale } = await getSalesData({ force: wantsFresh(req) });
-    const filtered = withGmv(applyFilters(records, req.query));
+    // กั้นสิทธิ์ที่เซิร์ฟเวอร์: ผู้ใช้ที่มี access (allow/deny) จะได้เฉพาะแพลตฟอร์มที่มีสิทธิ์
+    const scoped = filterByAccess(records, getUser(req)?.access);
+    const filtered = withGmv(applyFilters(scoped, req.query));
     res.json({ updatedAt, fromCache, stale, count: filtered.length, records: filtered });
   } catch (err) {
     handleError(err, res);
@@ -45,7 +49,8 @@ router.get('/sales', async (req, res) => {
 router.get('/sales/summary', async (req, res) => {
   try {
     const { records, updatedAt, fromCache, stale } = await getSalesData({ force: wantsFresh(req) });
-    const filtered = withGmv(applyFilters(records, req.query));
+    const scoped = filterByAccess(records, getUser(req)?.access);
+    const filtered = withGmv(applyFilters(scoped, req.query));
     const summary = computeSummary(filtered);
     res.json({ updatedAt, fromCache, stale, ...summary });
   } catch (err) {

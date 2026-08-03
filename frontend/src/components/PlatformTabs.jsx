@@ -5,7 +5,7 @@ import { platformColor, ONLINE_LOCATION } from "../utils/data";
  * แถบแท็บช่องทาง (ใช้บนจอเล็กแทน Sidebar):
  * "ภาพรวม" + ช่องทาง แยกกลุ่ม ออนไลน์ / หน้าร้าน
  */
-export default function PlatformTabs({ platforms = [], active = "", onSelect, locations = [] }) {
+export default function PlatformTabs({ platforms = [], active = "", onSelect, locations = [], showOverview = true }) {
   const { t } = useLang();
   const storeSet = new Set(locations.filter((l) => l && l !== ONLINE_LOCATION));
   const onlinePlatforms = platforms.filter((p) => !storeSet.has(p));
@@ -36,17 +36,17 @@ export default function PlatformTabs({ platforms = [], active = "", onSelect, lo
 
   return (
     <div className="thin-scrollbar -mx-1 flex items-center gap-2 overflow-x-auto px-1 pb-1">
-      {tab("", t("nav.overview"), "#4f46e5")}
-      {onlinePlatforms.length > 0 && (
-        <>
-          <span className={groupTag}>{t("nav.groupOnline")}</span>
-          {onlinePlatforms.map((p) => tab(p, p, platformColor(p)))}
-        </>
-      )}
+      {showOverview && tab("", t("nav.overview"), "#4f46e5")}
       {storePlatforms.length > 0 && (
         <>
           <span className={groupTag}>{t("nav.groupStore")}</span>
           {storePlatforms.map((p) => tab(p, p, platformColor(p)))}
+        </>
+      )}
+      {onlinePlatforms.length > 0 && (
+        <>
+          <span className={groupTag}>{t("nav.groupOnline")}</span>
+          {onlinePlatforms.map((p) => tab(p, p, platformColor(p)))}
         </>
       )}
     </div>

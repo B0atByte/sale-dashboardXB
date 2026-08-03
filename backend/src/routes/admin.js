@@ -99,11 +99,11 @@ router.post('/admin/users', (req, res) => {
   res.json({ ok: true, users: listUsers(callerRole) });
 });
 
-router.delete('/admin/users/:username', (req, res) => {
+router.delete('/admin/users/:username', async (req, res) => {
   const { role: callerRole } = getUser(req) || {};
   const r = removeUser(req.params.username, callerRole);
   if (r.error) return res.status(r.error === 'forbidden' ? 403 : 400).json(r);
-  revokeUserSessions(req.params.username); // เตะ session ที่ยังค้างของผู้ใช้ที่ถูกลบทันที
+  await revokeUserSessions(req.params.username); // เตะ session ที่ยังค้างของผู้ใช้ที่ถูกลบทันที
   logActivity({ type: 'user_remove', ...actorOf(req), detail: req.params.username });
   res.json({ ok: true, users: listUsers(callerRole) });
 });

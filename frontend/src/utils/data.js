@@ -112,14 +112,19 @@ export const CATEGORY_BUCKETS = [
   { key: "studio", color: "#4f46e5" },
   { key: "consumables", color: "#059669" },
   { key: "accessories", color: "#d97706" },
+  { key: "tea", color: "#e11d48" },
 ];
 const BUCKET_COLOR = Object.fromEntries(
   CATEGORY_BUCKETS.map((b) => [b.key, b.color])
 );
 
-/** จัดหมวดสินค้าเป็นคีย์ 1 ใน 3 กลุ่ม จากชื่อสินค้า + หมวดในเรคคอร์ด */
+/** จัดหมวดสินค้าเป็นคีย์ 1 ใน 4 กลุ่ม จากชื่อสินค้า + หมวดในเรคคอร์ด */
 export function bucketKeyOf(record) {
   const text = `${record.productName || ""} ${record.category || ""}`.toLowerCase();
+  // TEA มาก่อน (ชาอาจมาในซองเหมือนกัน จะได้ไม่ถูกนับเป็น consumables)
+  if (text.includes("tea")) {
+    return "tea";
+  }
   if (
     text.includes("midnight black") ||
     text.includes("moonlight white") ||
