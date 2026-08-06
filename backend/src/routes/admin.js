@@ -20,7 +20,7 @@ import {
   setExtraSources,
 } from '../services/source.js';
 import { clearCache, getSalesData } from '../services/sheets.js';
-import { listUsers, addUser, removeUser, canManageRole } from '../services/users.js';
+import { listUsers, addUser, removeUser, setUserAccess, resetPin, canManageRole } from '../services/users.js';
 import { getAllTargets, setTarget } from '../services/targets.js';
 import { getSettings, setSettings } from '../services/settings.js';
 import { asyncHandler } from '../middleware/asyncHandler.js';
@@ -90,12 +90,38 @@ router.get('/admin/users', (req, res) => {
 
 router.post('/admin/users', (req, res) => {
   const { role: callerRole } = getUser(req) || {};
-  const { username, pin, role } = req.body || {};
+  const { username, pin, role, access } = req.body || {};
   // admin สร้าง role ที่สูงกว่าตนไม่ได้ (เช่น admin สร้าง itsupport ไม่ได้)
   if (!canManageRole(callerRole, role)) return res.status(403).json({ error: 'forbidden_role' });
-  const r = addUser(username, pin, role);
+  const r = addUser(username, pin, role, access);
   if (r.error) return res.status(400).json(r);
   logActivity({ type: 'user_add', ...actorOf(req), detail: `${String(username || '').trim()} (${role})` });
+  res.json({ ok: true, users: listUsers(callerRole) });
+});
+
+// รีเซ็ต PIN ผู้ใช้ (กรณีลืมรหัส)
+router.post('/admin/users/:username/pin', async (req, res) => {
+  const { role: callerRole } = getUser(req) || {};
+  const r = resetPin(req.params.username, req.body?.pin, callerRole);
+  if (r.error) {
+    const code = r.error === 'forbidden' ? 403 : r.error === 'not_found' ? 404 : 400;
+    return res.status(code).json(r);
+  }
+  await revokeUserSessions(req.params.username); // เตะ session เดิม → ต้องล็อกอินด้วย PIN ใหม่
+  logActivity({ type: 'user_pin_reset', ...actorOf(req), detail: req.params.username });
+  res.json({ ok: true });
+});
+
+// ตั้ง/แก้สิทธิ์เข้าถึงข้อมูลของผู้ใช้ (allow/deny ช่องทาง + เห็นภาพรวมไหม)
+router.post('/admin/users/:username/access', async (req, res) => {
+  const { role: callerRole } = getUser(req) || {};
+  const r = setUserAccess(req.params.username, req.body?.access, callerRole);
+  if (r.error) {
+    const code = r.error === 'forbidden' ? 403 : r.error === 'not_found' ? 404 : 400;
+    return res.status(code).json(r);
+  }
+  await revokeUserSessions(req.params.username); // เตะ session เดิม เพื่อให้สิทธิ์ใหม่มีผลทันที
+  logActivity({ type: 'user_access', ...actorOf(req), detail: req.params.username });
   res.json({ ok: true, users: listUsers(callerRole) });
 });
 

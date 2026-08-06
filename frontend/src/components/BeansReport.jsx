@@ -15,7 +15,7 @@ const isBeanTea = (r) => BEAN_TEA_CATEGORIES.includes(String(r.category || "").t
 function daysBetween(a, b) {
   const da = new Date(`${a}T00:00:00`);
   const db = new Date(`${b}T00:00:00`);
-  if (Number.isNaN(da) || Number.isNaN(db)) return Infinity;
+  if (Number.isNaN(da.getTime()) || Number.isNaN(db.getTime())) return Infinity;
   return Math.abs(Math.round((db - da) / 86400000));
 }
 

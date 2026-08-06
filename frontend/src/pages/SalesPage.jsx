@@ -34,6 +34,7 @@ import {
   savePlatformOrder,
   applyPlatformOrder,
 } from "../utils/data";
+import { APP_VERSION } from "../version";
 
 const EMPTY_FILTERS = {
   from: "",
@@ -90,7 +91,10 @@ export default function SalesPage({ onLogout, user }) {
 
   const setPlatform = (platform) => setFilters((f) => ({ ...f, platform }));
   const onFilterChange = (patch) => setFilters((f) => ({ ...f, ...patch }));
-  const clearAll = () => setFilters(EMPTY_FILTERS);
+  const clearAll = () => {
+    setFilters(EMPTY_FILTERS);
+    setChannelProduct(""); // ล้างช่องค้นหาในการ์ด Sales by Channel ด้วย
+  };
   // สลับมุมมอง — ไป "แดชบอร์ด" = ล้างช่องทางกลับเป็น overview (แทนปุ่มภาพรวมที่ลบไป)
   const goView = (v) => {
     setView(v);
@@ -255,12 +259,14 @@ export default function SalesPage({ onLogout, user }) {
 
         <footer className="py-6 lg:hidden">
           <p className="text-center text-[11px] font-bold text-slate-400">{settings.brandFooter}</p>
+          <p className="mt-0.5 text-center text-[10px] font-bold tracking-wider text-slate-300">v{APP_VERSION}</p>
         </footer>
       </div>
 
       <AdminModal
         open={adminOpen}
         user={user}
+        platforms={orderedPlatforms}
         onClose={() => setAdminOpen(false)}
         onChanged={() => {
           refresh();

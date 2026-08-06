@@ -12,20 +12,23 @@ import { IconSearch, IconX } from "./Icons";
  *   ปี/เดือน/วัน = ดูสัดส่วนของ "ช่วงล่าสุด" (ปี/เดือน/วันล่าสุดของข้อมูลที่กรองอยู่)
  * - โหมดเดิม: ส่ง data มาตรง ๆ (ไม่มี toggle)
  */
-export default function DonutChart({ title, subtitle, data: dataProp, records, build, search, onSearch, searchPlaceholder }) {
+export default function DonutChart({ title, subtitle, data: dataProp, records, build, search, onSearch, searchPlaceholder, defaultMetric = "gmv", unitLabel, showGranToggle = true }) {
   const { t } = useLang();
   const [gran, setGran] = useState("year");
-  const [metric, setMetric] = useState("gmv");
+  const [metric, setMetric] = useState(defaultMetric);
   const hasToggle = Boolean(build && records);
+  const unitWord = unitLabel || t("trend.units");
 
   const data = useMemo(() => {
     if (!hasToggle) return dataProp || [];
-    return build(scopeLatest(records, gran), metric, t);
-  }, [hasToggle, dataProp, build, records, gran, metric, t]);
+    // toggle ปี/เดือน/วัน = จำกัดช่วงล่าสุดเอง; ถ้าซ่อน toggle นั้น ให้ใช้ records ที่หน้าเว็บกรองมาแล้วตรง ๆ
+    const src = showGranToggle ? scopeLatest(records, gran) : records;
+    return build(src, metric, t);
+  }, [hasToggle, dataProp, build, records, gran, metric, t, showGranToggle]);
 
   const total = data.reduce((s, d) => s + (d.value || 0), 0);
   const isUnits = hasToggle && metric === "units";
-  const fmtVal = (v) => (isUnits ? `${formatNumber(v)} ${t("trend.units")}` : formatCurrency(v));
+  const fmtVal = (v) => (isUnits ? `${formatNumber(v)} ${unitWord}` : formatCurrency(v));
   const fmtTotal = (v) => (isUnits ? formatNumber(v) : formatCompactCurrency(v));
 
   return (
@@ -39,21 +42,23 @@ export default function DonutChart({ title, subtitle, data: dataProp, records, b
           {hasToggle && (
             /* ml-auto: ชิดขวาเสมอ */
             <div className="ml-auto flex shrink-0 items-center gap-1.5">
-              <ToggleGroup
-                value={gran}
-                onChange={setGran}
-                options={[
-                  { v: "year", label: t("trend.year") },
-                  { v: "month", label: t("trend.month") },
-                  { v: "day", label: t("trend.day") },
-                ]}
-              />
+              {showGranToggle && (
+                <ToggleGroup
+                  value={gran}
+                  onChange={setGran}
+                  options={[
+                    { v: "year", label: t("trend.year") },
+                    { v: "month", label: t("trend.month") },
+                    { v: "day", label: t("trend.day") },
+                  ]}
+                />
+              )}
               <ToggleGroup
                 value={metric}
                 onChange={setMetric}
                 options={[
                   { v: "gmv", label: `${t("trend.gmv")} (฿)` },
-                  { v: "units", label: `${t("trend.units")} (pcs)` },
+                  { v: "units", label: unitLabel || `${t("trend.units")} (pcs)` },
                 ]}
               />
             </div>

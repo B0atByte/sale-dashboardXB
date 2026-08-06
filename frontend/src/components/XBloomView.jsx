@@ -10,7 +10,14 @@ import {
 } from "recharts";
 import { useLang } from "../i18n";
 import DonutChart from "./DonutChart";
-import { isMachine, machineColorOf, isCentralWorld, aggregateTrend } from "../utils/data";
+import ShopeeFees from "./ShopeeFees";
+import ToggleGroup from "./ToggleGroup";
+import {
+  isMachine,
+  machineColorDonut,
+  platformDonutFrom,
+  aggregateTrend,
+} from "../utils/data";
 import { formatNumber } from "../utils/format";
 import { IconRefresh, IconGrid } from "./Icons";
 
@@ -18,6 +25,9 @@ import { IconRefresh, IconGrid } from "./Icons";
 const START = "2026-07-01";
 const BEAN_TEA = ["beans", "xpod", "tea", "sachet"];
 const isBeanTea = (r) => BEAN_TEA.includes(String(r.category || "").trim().toLowerCase());
+
+const fieldCls =
+  "rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-bold text-slate-700 outline-none transition focus:border-indigo-400 focus:bg-white";
 
 /** ป้ายแกนเดือน "2026-07" -> "ก.ค. 69" / "Jul 26" */
 function monthLabel(key, lang) {
@@ -62,23 +72,35 @@ function MonthlyBar({ data, color = "#6366f1", lang, unit }) {
 
 /**
  * หน้า "xBloom View" — ภาพรวมการขายเครื่อง xBloom (+ เมล็ด) ตั้งแต่ ก.ค. 2026
- * - จำนวนเครื่องที่ขายแต่ละเดือน
- * - สัดส่วนยอดขายเครื่องตามสี (โดนัท)
- * - สัดส่วนเครื่องตามช่องทาง B2B / ออนไลน์ / CTW (โดนัท)
- * - จำนวนเมล็ดที่ขายทุกประเภทแต่ละเดือน
+ * - ฟิลเตอร์ช่วงเวลา (วัน/เดือน/ปี + เลือกช่วงเจาะจง) + ช่องทาง — คุมทั้งหน้า
+ * - KPI + จำนวนเครื่องที่ขายรายเดือน
+ * - โดนัทสัดส่วนเครื่องตามสี / ตามช่องทาง (เริ่มที่ "จำนวนเครื่อง" สลับดู ยอดขาย ฿ ได้)
+ * - การ์ดค่าธรรมเนียม & รายรับสุทธิ + ตารางรายการซื้อเครื่องล่าสุด (คลิกดูรายละเอียด)
+ * - จำนวนเมล็ดที่ขายทุกประเภทรายเดือน
  */
 export default function XBloomView() {
   const { t, lang } = useLang();
   const [records, setRecords] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
+  const [gran, setGran] = useState("year"); // year | month | day
+  const [anchor, setAnchor] = useState(""); // วันอ้างอิงที่เลือก (YYYY-MM-DD)
+  const [channel, setChannel] = useState(""); // "" = ทุกช่องทาง
 
   const load = (force = false) => {
     setLoading(true);
     setError(false);
     fetch(`/api/sales${force ? "?fresh=1" : ""}`, { credentials: "same-origin" })
       .then((r) => (r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`))))
-      .then((d) => setRecords((d.records ?? []).filter((r) => String(r.date || "") >= START)))
+      .then((d) => {
+        const recs = (d.records ?? []).filter((r) => String(r.date || "") >= START);
+        setRecords(recs);
+        const dates = recs.filter(isMachine).map((r) => r.date).filter(Boolean);
+        if (dates.length) {
+          const max = dates.reduce((a, b) => (a > b ? a : b));
+          setAnchor((prev) => prev || max); // ตั้งต้นที่วันล่าสุด (ครั้งแรกเท่านั้น)
+        }
+      })
       .catch(() => setError(true))
       .finally(() => setLoading(false));
   };
@@ -87,44 +109,44 @@ export default function XBloomView() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const machines = useMemo(() => records.filter(isMachine), [records]);
-  const beans = useMemo(() => records.filter(isBeanTea), [records]);
+  // ตัวเลือกช่องทาง + ปี (จากเครื่องทั้งหมด ยังไม่กรอง)
+  const allMachines = useMemo(() => records.filter(isMachine), [records]);
+  const channels = useMemo(() => {
+    const set = new Set();
+    for (const r of allMachines) {
+      const p = String(r.platform || "").trim();
+      if (p) set.add(p);
+    }
+    return [...set].sort((a, b) => a.localeCompare(b));
+  }, [allMachines]);
+  const machineDates = useMemo(() => allMachines.map((r) => r.date).filter(Boolean), [allMachines]);
+  const dataMin = machineDates.length ? machineDates.reduce((a, b) => (a < b ? a : b)) : "";
+  const dataMax = machineDates.length ? machineDates.reduce((a, b) => (a > b ? a : b)) : "";
+  const years = useMemo(() => {
+    const set = new Set(machineDates.map((d) => d.slice(0, 4)));
+    return [...set].sort((a, b) => b.localeCompare(a));
+  }, [machineDates]);
+
+  // กรองตามช่วงเวลา + ช่องทาง (คุมทั้งหน้า)
+  const scopeKey =
+    gran === "year" ? anchor.slice(0, 4) : gran === "month" ? anchor.slice(0, 7) : anchor;
+  const base = useMemo(
+    () =>
+      records.filter(
+        (r) =>
+          (!channel || String(r.platform || "").trim() === channel) &&
+          String(r.date || "").startsWith(scopeKey)
+      ),
+    [records, channel, scopeKey]
+  );
+  const machines = useMemo(() => base.filter(isMachine), [base]);
+  const beans = useMemo(() => base.filter(isBeanTea), [base]);
 
   const machineUnits = useMemo(() => machines.reduce((s, r) => s + (r.quantity || 0), 0), [machines]);
   const beanUnits = useMemo(() => beans.reduce((s, r) => s + (r.quantity || 0), 0), [beans]);
 
   const machineByMonth = useMemo(() => aggregateTrend(machines, "month", "units"), [machines]);
   const beanByMonth = useMemo(() => aggregateTrend(beans, "month", "units"), [beans]);
-
-  // โดนัทสีเครื่อง (นับจำนวนชิ้น)
-  const colorDonut = useMemo(() => {
-    const map = new Map();
-    for (const r of machines) {
-      const c = machineColorOf(r);
-      const name = c ? c.label : t("common.other");
-      const color = c ? c.color : "#64748b";
-      const cur = map.get(name) || { name, value: 0, color };
-      cur.value += r.quantity || 0;
-      map.set(name, cur);
-    }
-    return [...map.values()].filter((d) => d.value > 0).sort((a, b) => b.value - a.value);
-  }, [machines, t]);
-
-  // โดนัทช่องทางเครื่อง: B2B / ออนไลน์ / CTW
-  const channelDonut = useMemo(() => {
-    const buckets = {
-      ctw: { name: t("xbloom.ctw"), value: 0, color: "#db2777" },
-      b2b: { name: t("xbloom.b2b"), value: 0, color: "#e11d48" },
-      online: { name: t("xbloom.online"), value: 0, color: "#4f46e5" },
-    };
-    for (const r of machines) {
-      const q = r.quantity || 0;
-      if (isCentralWorld(r)) buckets.ctw.value += q;
-      else if (String(r.platform || "").trim().toLowerCase() === "b2b") buckets.b2b.value += q;
-      else buckets.online.value += q;
-    }
-    return Object.values(buckets).filter((d) => d.value > 0);
-  }, [machines, t]);
 
   const card = "rounded-[32px] border border-slate-100 bg-white p-6 shadow-sm";
 
@@ -145,7 +167,7 @@ export default function XBloomView() {
 
   return (
     <div className="space-y-6">
-      {/* หัวเรื่อง + KPI */}
+      {/* หัวเรื่อง + ตัวกรอง + KPI */}
       <section className={card}>
         <div className="flex flex-wrap items-center gap-3">
           <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-indigo-50 text-indigo-600">
@@ -165,6 +187,68 @@ export default function XBloomView() {
             <IconRefresh className={`h-5 w-5 ${loading ? "animate-spin" : ""}`} />
           </button>
         </div>
+
+        {/* ตัวกรอง: ช่วงเวลา (toggle + เลือกวัน/เดือน/ปีเจาะจง) + ช่องทาง */}
+        <div className="mt-5 flex flex-wrap items-center gap-3">
+          <ToggleGroup
+            value={gran}
+            onChange={setGran}
+            options={[
+              { v: "year", label: t("trend.year") },
+              { v: "month", label: t("trend.month") },
+              { v: "day", label: t("trend.day") },
+            ]}
+          />
+
+          {gran === "day" ? (
+            <input
+              type="date"
+              value={anchor}
+              min={dataMin || undefined}
+              max={dataMax || undefined}
+              onChange={(e) => e.target.value && setAnchor(e.target.value)}
+              aria-label={t("report.pickDate")}
+              className={fieldCls}
+            />
+          ) : gran === "month" ? (
+            <input
+              type="month"
+              value={anchor.slice(0, 7)}
+              min={dataMin ? dataMin.slice(0, 7) : undefined}
+              max={dataMax ? dataMax.slice(0, 7) : undefined}
+              onChange={(e) => e.target.value && setAnchor(`${e.target.value}-${anchor.slice(8) || "01"}`)}
+              aria-label={t("report.pickMonth")}
+              className={fieldCls}
+            />
+          ) : (
+            <select
+              value={anchor.slice(0, 4)}
+              onChange={(e) => setAnchor(`${e.target.value}-${anchor.slice(5) || "01-01"}`)}
+              aria-label={t("report.pickYear")}
+              className={fieldCls}
+            >
+              {years.map((y) => (
+                <option key={y} value={y}>
+                  {y}
+                </option>
+              ))}
+            </select>
+          )}
+
+          {/* ช่องทาง / แพลตฟอร์ม */}
+          <div className="flex items-center gap-2">
+            <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">{t("report.channel")}</span>
+            <select value={channel} onChange={(e) => setChannel(e.target.value)} className={fieldCls}>
+              <option value="">{t("report.allChannels")}</option>
+              {channels.map((c) => (
+                <option key={c} value={c}>
+                  {c}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+
         <div className="mt-5 grid grid-cols-1 gap-3 sm:grid-cols-2">
           <div className="rounded-2xl bg-slate-50 px-4 py-3">
             <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">{t("xbloom.machines")}</p>
@@ -188,11 +272,36 @@ export default function XBloomView() {
         <MonthlyBar data={machineByMonth} color="#4f46e5" lang={lang} unit={t("xbloom.unitMachine")} />
       </section>
 
-      {/* โดนัท 2 คอลัมน์: สีเครื่อง + ช่องทาง */}
+      {/* โดนัท 2 คอลัมน์: สีเครื่อง + ช่องทาง — เริ่มที่ "จำนวนเครื่อง" สลับ ฿ ได้ */}
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-        <DonutChart title={t("xbloom.byColor")} subtitle={t("xbloom.byColorSub")} data={colorDonut} />
-        <DonutChart title={t("xbloom.byChannel")} subtitle={t("xbloom.byChannelSub")} data={channelDonut} />
+        <DonutChart
+          title={t("xbloom.byColor")}
+          subtitle={t("xbloom.byColorSub")}
+          records={machines}
+          build={machineColorDonut}
+          defaultMetric="units"
+          unitLabel={t("xbloom.unitMachine")}
+          showGranToggle={false}
+        />
+        <DonutChart
+          title={t("xbloom.byChannel")}
+          subtitle={t("xbloom.byChannelSub")}
+          records={machines}
+          build={platformDonutFrom}
+          defaultMetric="units"
+          unitLabel={t("xbloom.unitMachine")}
+          showGranToggle={false}
+        />
       </div>
+
+      {/* ค่าธรรมเนียม & รายรับสุทธิ + ตารางรายการซื้อเครื่องล่าสุด (คลิกดูรายละเอียด) */}
+      <ShopeeFees
+        records={machines}
+        title={t("xbloom.feesTitle")}
+        subtitle={t("xbloom.feesSub")}
+        defaultSortKey="date"
+        defaultSortDir="desc"
+      />
 
       {/* เมล็ดรายเดือน */}
       <section className={card}>

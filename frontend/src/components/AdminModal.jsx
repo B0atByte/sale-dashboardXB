@@ -59,7 +59,7 @@ const DATA_DOCS = [
  * Admin Panel (เฉพาะ admin) — แบบแท็บ:
  *   ทั่วไป (แบรนด์/ความไว/แหล่งยอดขาย) · แหล่งข้อมูล · เป้ายอดขาย · ผู้ใช้
  */
-export default function AdminModal({ open, user, onClose, onChanged }) {
+export default function AdminModal({ open, user, platforms = [], onClose, onChanged }) {
   const { t, lang } = useLang();
   const { settings } = useSettings();
   const isIt = user?.role === "itsupport";
@@ -84,6 +84,14 @@ export default function AdminModal({ open, user, onClose, onChanged }) {
   const [nu, setNu] = useState({ username: "", pin: "", role: "viewer" });
   const [uStatus, setUStatus] = useState(null);
   const [uBusy, setUBusy] = useState(false);
+  // แก้สิทธิ์ (access) รายคน
+  const [accessFor, setAccessFor] = useState(null); // username ที่กำลังแก้
+  const [accessDraft, setAccessDraft] = useState(null); // { mode:"all"|"allow"|"deny", platforms:[], overview:bool }
+  const [accessBusy, setAccessBusy] = useState(false);
+  // รีเซ็ต PIN รายคน (กรณีลืมรหัส)
+  const [pinFor, setPinFor] = useState(null);
+  const [pinDraft, setPinDraft] = useState("");
+  const [pinBusy, setPinBusy] = useState(false);
 
   // เป้ายอดขาย
   const [tg, setTg] = useState({ month: "", amount: "" });
@@ -277,6 +285,93 @@ export default function AdminModal({ open, user, onClose, onChanged }) {
     const d = await res.json().catch(() => ({}));
     if (res.ok) setUsers(d.users || []);
     else setUStatus({ type: "error", msg: d.error === "last_admin" ? t("admin.errLastAdmin") : t("admin.errFetch") });
+  };
+
+  // ---------- แก้สิทธิ์เข้าถึงข้อมูลรายคน ----------
+  const accessSummary = (a) => {
+    if (!a) return t("access.all");
+    if (a.allow?.length) return `${t("access.only")}: ${a.allow.join(", ")}`;
+    if (a.deny?.length) return `${t("access.except")}: ${a.deny.join(", ")}`;
+    return a.overview === false ? t("access.noOverview") : t("access.all");
+  };
+  const openAccess = (u) => {
+    const a = u.access;
+    let mode = "all";
+    let plats = [];
+    let overview = true;
+    if (a) {
+      overview = a.overview !== false;
+      if (a.allow?.length) { mode = "allow"; plats = a.allow; }
+      else if (a.deny?.length) { mode = "deny"; plats = a.deny; }
+    }
+    setAccessDraft({ mode, platforms: plats, overview });
+    setPinFor(null);
+    setAccessFor(accessFor === u.username ? null : u.username);
+  };
+  const openPin = (u) => {
+    setAccessFor(null);
+    setPinDraft("");
+    setPinFor(pinFor === u.username ? null : u.username);
+  };
+  const saveResetPin = async () => {
+    if (pinDraft.length < 4) return;
+    setPinBusy(true);
+    setUStatus(null);
+    try {
+      const res = await fetch(`/api/admin/users/${encodeURIComponent(pinFor)}/pin`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "same-origin",
+        body: JSON.stringify({ pin: pinDraft }),
+      });
+      const d = await res.json().catch(() => ({}));
+      if (res.ok) {
+        setPinFor(null);
+        setPinDraft("");
+        setUStatus({ type: "success", msg: t("admin.pinReset") });
+      } else {
+        setUStatus({ type: "error", msg: d.error === "invalid_pin" ? t("admin.errPinFmt") : t("admin.errFetch") });
+      }
+    } catch {
+      setUStatus({ type: "error", msg: t("admin.errFetch") });
+    } finally {
+      setPinBusy(false);
+    }
+  };
+  const togglePlat = (p) =>
+    setAccessDraft((d) => ({
+      ...d,
+      platforms: d.platforms.includes(p) ? d.platforms.filter((x) => x !== p) : [...d.platforms, p],
+    }));
+  const saveAccess = async () => {
+    if (!accessDraft) return;
+    setAccessBusy(true);
+    setUStatus(null);
+    const d = accessDraft;
+    let access;
+    if (d.mode === "allow") access = { overview: d.overview, allow: d.platforms };
+    else if (d.mode === "deny") access = { overview: d.overview, deny: d.platforms };
+    else access = { overview: d.overview };
+    try {
+      const res = await fetch(`/api/admin/users/${encodeURIComponent(accessFor)}/access`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "same-origin",
+        body: JSON.stringify({ access }),
+      });
+      const dd = await res.json().catch(() => ({}));
+      if (res.ok) {
+        setUsers(dd.users || []);
+        setAccessFor(null);
+        setUStatus({ type: "success", msg: t("access.saved") });
+      } else {
+        setUStatus({ type: "error", msg: t("admin.errFetch") });
+      }
+    } catch {
+      setUStatus({ type: "error", msg: t("admin.errFetch") });
+    } finally {
+      setAccessBusy(false);
+    }
   };
 
   const field = "rounded-xl border-none bg-slate-50 px-3 py-2.5 text-xs font-bold text-slate-700 outline-none focus:ring-2 focus:ring-indigo-100";
@@ -474,17 +569,110 @@ export default function AdminModal({ open, user, onClose, onChanged }) {
           <div>
             <div className="space-y-2">
               {users.map((u) => (
-                <div key={u.username} className="flex items-center justify-between rounded-2xl bg-slate-50 px-3 py-2.5">
-                  <div className="flex items-center gap-2.5">
-                    <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-slate-800 text-[11px] font-black uppercase text-white">{u.username.slice(0, 1)}</span>
-                    <div className="leading-tight">
-                      <p className="text-xs font-bold text-slate-700">{u.username}</p>
-                      <p className="text-[9px] font-black uppercase tracking-wider text-indigo-500">{t(`role.${u.role}`)}</p>
+                <div key={u.username} className="rounded-2xl bg-slate-50">
+                  <div className="flex items-center justify-between px-3 py-2.5">
+                    <div className="flex min-w-0 items-center gap-2.5">
+                      <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-slate-800 text-[11px] font-black uppercase text-white">{u.username.slice(0, 1)}</span>
+                      <div className="min-w-0 leading-tight">
+                        <p className="text-xs font-bold text-slate-700">{u.username}</p>
+                        <p className="truncate text-[9px] font-black uppercase tracking-wider text-indigo-500">
+                          {t(`role.${u.role}`)} · <span className="normal-case text-slate-400">{accessSummary(u.access)}</span>
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex shrink-0 items-center gap-1">
+                      <button onClick={() => openPin(u)} className="rounded-lg px-2.5 py-1 text-[11px] font-bold text-slate-500 transition hover:bg-slate-100">
+                        {t("admin.resetPin")}
+                      </button>
+                      <button onClick={() => openAccess(u)} className="rounded-lg px-2.5 py-1 text-[11px] font-bold text-indigo-600 transition hover:bg-indigo-50">
+                        {t("access.edit")}
+                      </button>
+                      <button onClick={() => delUser(u.username)} className="rounded-lg px-2.5 py-1 text-[11px] font-bold text-rose-500 transition hover:bg-rose-50">
+                        {lang === "en" ? "Delete" : "ลบ"}
+                      </button>
                     </div>
                   </div>
-                  <button onClick={() => delUser(u.username)} className="rounded-lg px-2.5 py-1 text-[11px] font-bold text-rose-500 transition hover:bg-rose-50">
-                    {lang === "en" ? "Delete" : "ลบ"}
-                  </button>
+
+                  {pinFor === u.username && (
+                    <div className="flex flex-wrap items-center gap-2 border-t border-slate-100 px-3 py-3">
+                      <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">{t("admin.newPin")}</span>
+                      <input
+                        value={pinDraft}
+                        onChange={(e) => setPinDraft(e.target.value.replace(/\D/g, "").slice(0, 12))}
+                        type="password"
+                        inputMode="numeric"
+                        autoComplete="off"
+                        placeholder={t("admin.newPinHint")}
+                        className={`${field} w-32`}
+                      />
+                      <div className="ml-auto flex gap-2">
+                        <button onClick={() => setPinFor(null)} className="rounded-lg px-3 py-1.5 text-[11px] font-bold text-slate-500 transition hover:bg-slate-100">
+                          {t("access.cancel")}
+                        </button>
+                        <button onClick={saveResetPin} disabled={pinBusy || pinDraft.length < 4} className="rounded-lg bg-slate-800 px-3 py-1.5 text-[11px] font-black uppercase tracking-wider text-white transition hover:bg-slate-900 disabled:opacity-40">
+                          {pinBusy ? t("admin.savingUser") : t("admin.resetPin")}
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                  {accessFor === u.username && accessDraft && (
+                    <div className="space-y-3 border-t border-slate-100 px-3 py-3">
+                      <label className="flex items-center gap-2 text-xs font-bold text-slate-600">
+                        <input type="checkbox" checked={accessDraft.overview} onChange={(e) => setAccessDraft((d) => ({ ...d, overview: e.target.checked }))} />
+                        {t("access.overview")}
+                      </label>
+                      <div className="flex flex-wrap gap-1.5">
+                        {[
+                          { v: "all", l: t("access.all") },
+                          { v: "allow", l: t("access.modeAllow") },
+                          { v: "deny", l: t("access.modeDeny") },
+                        ].map((m) => (
+                          <button
+                            key={m.v}
+                            type="button"
+                            onClick={() => setAccessDraft((d) => ({ ...d, mode: m.v }))}
+                            className={`rounded-lg px-2.5 py-1.5 text-[11px] font-bold transition ${
+                              accessDraft.mode === m.v ? "bg-slate-800 text-white" : "border border-slate-200 bg-white text-slate-500"
+                            }`}
+                          >
+                            {m.l}
+                          </button>
+                        ))}
+                      </div>
+                      {accessDraft.mode !== "all" && (
+                        <div className="flex flex-wrap gap-1.5">
+                          {platforms.length === 0 ? (
+                            <span className="text-[11px] text-slate-400">{t("access.noPlatforms")}</span>
+                          ) : (
+                            platforms.map((p) => {
+                              const on = accessDraft.platforms.includes(p);
+                              return (
+                                <button
+                                  key={p}
+                                  type="button"
+                                  onClick={() => togglePlat(p)}
+                                  className={`rounded-lg px-2 py-1 text-[11px] font-medium transition ${
+                                    on ? "bg-indigo-600 text-white" : "border border-slate-200 bg-white text-slate-500"
+                                  }`}
+                                >
+                                  {p}
+                                </button>
+                              );
+                            })
+                          )}
+                        </div>
+                      )}
+                      <div className="flex justify-end gap-2">
+                        <button onClick={() => setAccessFor(null)} className="rounded-lg px-3 py-1.5 text-[11px] font-bold text-slate-500 transition hover:bg-slate-100">
+                          {t("access.cancel")}
+                        </button>
+                        <button onClick={saveAccess} disabled={accessBusy} className="rounded-lg bg-indigo-600 px-3 py-1.5 text-[11px] font-black uppercase tracking-wider text-white transition hover:bg-indigo-700 disabled:opacity-40">
+                          {accessBusy ? t("admin.savingUser") : t("access.save")}
+                        </button>
+                      </div>
+                    </div>
+                  )}
                 </div>
               ))}
             </div>

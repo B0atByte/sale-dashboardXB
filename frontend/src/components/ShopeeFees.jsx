@@ -11,11 +11,11 @@ const PAGE_SIZES = [10, 25, 50, 100, "all"];
  * - การ์ดสรุป: ค่าจัดส่ง · ค่าธรรมเนียม · ค่าคอมมิชชั่น · รายรับสุทธิ
  * - ตารางรายเคส: คลิกหัวคอลัมน์เพื่อเรียง (เริ่มมาก→น้อย) + เลือกจำนวนแถว + แบ่งหน้า + ปุ่มดูรายละเอียด
  */
-export default function ShopeeFees({ records = [] }) {
+export default function ShopeeFees({ records = [], title, subtitle, defaultSortKey = "net", defaultSortDir = "desc" }) {
   const { t, lang } = useLang();
   const [detail, setDetail] = useState(null);
-  const [sortKey, setSortKey] = useState("net"); // เริ่มที่รายรับสุทธิ
-  const [sortDir, setSortDir] = useState("desc"); // มาก → น้อย
+  const [sortKey, setSortKey] = useState(defaultSortKey); // เริ่มที่รายรับสุทธิ (หน้าเครื่อง = วันที่ล่าสุด)
+  const [sortDir, setSortDir] = useState(defaultSortDir); // มาก → น้อย
   const [pageSize, setPageSize] = useState(25);
   const [page, setPage] = useState(1);
 
@@ -68,10 +68,14 @@ export default function ShopeeFees({ records = [] }) {
   const safePage = Math.min(page, totalPages);
   const paged = pageSize === "all" ? sorted : sorted.slice((safePage - 1) * pageSize, safePage * pageSize);
 
-  // เปลี่ยน sort / ขนาดหน้า / ข้อมูล → กลับหน้าแรก
+  // เปลี่ยน sort / ขนาดหน้า → กลับหน้าแรก (ไม่รวม records เพื่อไม่ให้ auto-refresh เด้งหน้า)
   useEffect(() => {
     setPage(1);
-  }, [sortKey, sortDir, pageSize, records]);
+  }, [sortKey, sortDir, pageSize]);
+  // ถ้าข้อมูลลดลงจนหน้าปัจจุบันเกินหน้าสุดท้าย ให้หนีบกลับเข้าช่วง
+  useEffect(() => {
+    setPage((p) => Math.min(p, totalPages));
+  }, [totalPages]);
 
   const toggleSort = (key) => {
     if (key === sortKey) setSortDir((d) => (d === "asc" ? "desc" : "asc"));
@@ -84,8 +88,8 @@ export default function ShopeeFees({ records = [] }) {
   return (
     <section className="rounded-[32px] border border-slate-100 bg-white p-6 shadow-sm">
       <div className="mb-4">
-        <h2 className="text-2xl font-bold tracking-tighter text-slate-800">{t("shopee.title")}</h2>
-        <p className="mt-0.5 text-xs font-bold uppercase tracking-wider text-slate-400">{t("shopee.sub")}</p>
+        <h2 className="text-2xl font-bold tracking-tighter text-slate-800">{title ?? t("shopee.title")}</h2>
+        <p className="mt-0.5 text-xs font-bold uppercase tracking-wider text-slate-400">{subtitle ?? t("shopee.sub")}</p>
       </div>
 
       {/* การ์ดสรุป */}

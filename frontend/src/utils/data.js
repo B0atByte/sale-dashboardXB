@@ -206,11 +206,32 @@ export function platformDonutFrom(records = [], metric = "gmv", t = (k) => k) {
     .sort((a, b) => b.value - a.value);
 }
 
-// พาเลตต์หมวดสินค้า (ใช้ตามลำดับหลังเรียงชื่อหมวดตามตัวอักษร — สีคงที่ต่อชื่อ)
+// พาเลตต์หมวดสินค้า
 const CATEGORY_PALETTE = [
   "#4f46e5", "#059669", "#d97706", "#e11d48", "#0891b2",
   "#7c3aed", "#ca8a04", "#0d9488", "#db2777", "#2563eb",
 ];
+// สีคงที่ต่อ "ชื่อหมวด" (หมวดหลักที่รู้จัก) — สีไม่เปลี่ยนข้ามวิว/ช่องทาง
+const CATEGORY_COLOR_MAP = {
+  "xbloom studio": "#4f46e5",
+  beans: "#059669",
+  xpod: "#d97706",
+  tea: "#e11d48",
+  accessories: "#0891b2",
+  xpack: "#7c3aed",
+  beverage: "#ca8a04",
+};
+/** index จากชื่อ (hash) — สีคงที่ต่อชื่อสำหรับหมวด/ลูกค้าที่ไม่มีในแมพ */
+function hashIndex(name, len) {
+  let h = 0;
+  const s = String(name);
+  for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0;
+  return h % len;
+}
+function categoryColor(name) {
+  const k = String(name).trim().toLowerCase();
+  return CATEGORY_COLOR_MAP[k] || CATEGORY_PALETTE[hashIndex(k, CATEGORY_PALETTE.length)];
+}
 
 /**
  * โดนัทหมวดสินค้า — จัดกลุ่มตามค่า "Category" ในชีตโดยตรง (dynamic)
@@ -223,12 +244,8 @@ export function categoryDonut(records = [], metric = "gmv", t = (k) => k) {
     const k = String(r.category || "").trim() || t("common.na");
     totals.set(k, (totals.get(k) || 0) + metricOf(r, metric));
   }
-  const names = [...totals.keys()].sort((a, b) => a.localeCompare(b));
-  const colorFor = Object.fromEntries(
-    names.map((n, i) => [n, CATEGORY_PALETTE[i % CATEGORY_PALETTE.length]])
-  );
-  let items = names
-    .map((n) => ({ name: n, value: totals.get(n), color: colorFor[n] }))
+  let items = [...totals.entries()]
+    .map(([n, value]) => ({ name: n, value, color: categoryColor(n) }))
     .filter((d) => d.value > 0);
   // ยุบหมวดย่อยที่เกิน 8 อันดับเป็น "อื่น ๆ" (กันชื่อสินค้าที่หลุดมาเป็นหมวดตอน Categroy ว่าง)
   if (items.length > 8) {
@@ -272,11 +289,11 @@ export function customerDonut(records = [], metric = "gmv", t = (k) => k) {
     const k = String(r.customer || "").trim() || t("common.na");
     totals.set(k, (totals.get(k) || 0) + metricOf(r, metric));
   }
-  const names = [...totals.keys()].sort((a, b) => a.localeCompare(b));
-  const colorFor = Object.fromEntries(
-    names.map((n, i) => [n, CAMPAIGN_PALETTE[i % CAMPAIGN_PALETTE.length]])
-  );
-  let items = names.map((n) => ({ name: n, value: totals.get(n), color: colorFor[n] }));
+  let items = [...totals.entries()].map(([n, value]) => ({
+    name: n,
+    value,
+    color: CAMPAIGN_PALETTE[hashIndex(n, CAMPAIGN_PALETTE.length)],
+  }));
   if (items.length > 7) {
     const sorted = [...items].sort((a, b) => b.value - a.value);
     const keep = sorted.slice(0, 6);
@@ -284,6 +301,23 @@ export function customerDonut(records = [], metric = "gmv", t = (k) => k) {
     items = [...keep, { name: t("common.other"), value: otherVal, color: OTHER_COLOR }];
   }
   return items.filter((d) => d.value > 0).sort((a, b) => b.value - a.value);
+}
+
+/**
+ * โดนัทสีเครื่อง xBloom จาก records -> [{name,value,color}]
+ * metric = "units" (นับจำนวนเครื่อง, ค่าเริ่มต้นของหน้า xBloom View) หรือ "gmv" (ยอดขาย ฿)
+ */
+export function machineColorDonut(records = [], metric = "units", t = (k) => k) {
+  const map = new Map();
+  for (const r of records) {
+    const c = machineColorOf(r);
+    const name = c ? c.label : t("common.other");
+    const color = c ? c.color : OTHER_COLOR;
+    const cur = map.get(name) || { name, value: 0, color };
+    cur.value += metricOf(r, metric);
+    map.set(name, cur);
+  }
+  return [...map.values()].filter((d) => d.value > 0).sort((a, b) => b.value - a.value);
 }
 
 /** ซีรีส์รายวัน [{date,gmv,orders,units}] เรียงจากวันเก่าไปใหม่ */

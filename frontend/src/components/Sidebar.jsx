@@ -3,6 +3,7 @@ import { useLang } from "../i18n";
 import { useSettings } from "../settings";
 import { platformColor, ONLINE_LOCATION } from "../utils/data";
 import { IconActivity, IconGrid, IconCoffee, IconBuilding } from "./Icons";
+import { APP_VERSION } from "../version";
 
 /**
  * แถบเมนูด้านซ้าย (sidebar) — แสดงเฉพาะจอใหญ่ (lg ขึ้นไป)
@@ -173,6 +174,7 @@ export default function Sidebar({ platforms = [], active = "", onSelect, onReord
       {/* ท้าย sidebar */}
       <div className="border-t border-slate-100 px-6 py-4">
         <p className="text-[10px] font-bold text-slate-400">{settings.brandFooter}</p>
+        <p className="mt-0.5 text-[10px] font-bold tracking-wider text-slate-300">v{APP_VERSION}</p>
       </div>
     </aside>
   );

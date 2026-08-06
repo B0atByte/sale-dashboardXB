@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useLang } from "../i18n";
+import { APP_VERSION } from "../version";
 
 /**
  * หน้าเข้าสู่ระบบ — username + PIN
@@ -118,6 +119,9 @@ export default function PasscodeGate({ onLogin }) {
             </button>
           ))}
         </div>
+
+        {/* เวอร์ชันระบบ */}
+        <p className="mt-4 text-center text-[10px] font-bold tracking-wider text-slate-300">v{APP_VERSION}</p>
       </div>
     </div>
   );

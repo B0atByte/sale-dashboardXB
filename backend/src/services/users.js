@@ -40,6 +40,27 @@ export function canSeeOverview(access) {
   return !access || access.overview !== false;
 }
 
+/**
+ * ตรวจ/normalize access ที่รับมาจากผู้ใช้ → คืน object ที่ปลอดภัย หรือ null (= ไม่จำกัด เห็นทุกช่องทาง)
+ * รูปแบบ: { overview?: boolean, allow?: string[], deny?: string[] }
+ */
+export function sanitizeAccess(a) {
+  if (!a || typeof a !== 'object') return null;
+  const norm = (arr) =>
+    Array.isArray(arr)
+      ? [...new Set(arr.map((s) => String(s || '').trim()).filter(Boolean))]
+      : [];
+  const allow = norm(a.allow);
+  const deny = norm(a.deny);
+  const overview = a.overview !== false; // ค่าเริ่มต้น = เห็นภาพรวมได้
+  // ไม่จำกัดช่องทาง และเห็นภาพรวม → ไม่ต้องมี access เลย (เห็นทุกอย่าง)
+  if (!allow.length && !deny.length && overview) return null;
+  const out = { overview };
+  if (allow.length) out.allow = allow;
+  if (deny.length) out.deny = deny;
+  return out;
+}
+
 /** ระดับสิทธิ์ของ role (ยิ่งมากยิ่งสูง) */
 export function roleRank(role) {
   return ROLE_RANK[role] || 0;
@@ -152,8 +173,8 @@ export function verifyUser(username, pin) {
   return { username: u.username, role: u.role, access: u.access || null };
 }
 
-/** เพิ่มผู้ใช้ใหม่ */
-export function addUser(username, pin, role) {
+/** เพิ่มผู้ใช้ใหม่ (access เป็น optional — จำกัดช่องทาง/ภาพรวมได้ตั้งแต่สร้าง) */
+export function addUser(username, pin, role, access) {
   const uname = String(username || '').trim();
   if (!uname || !/^[a-zA-Z0-9_.\- ]{2,20}$/.test(uname)) return { error: 'invalid_username' };
   if (!/^\d{4,12}$/.test(String(pin || ''))) return { error: 'invalid_pin' };
@@ -162,7 +183,39 @@ export function addUser(username, pin, role) {
   if (users.some((u) => u.username.toLowerCase() === uname.toLowerCase())) {
     return { error: 'duplicate' };
   }
-  users.push({ username: uname, pinHash: makeHash(pin), role });
+  const u = { username: uname, pinHash: makeHash(pin), role };
+  const clean = sanitizeAccess(access);
+  if (clean) u.access = clean;
+  users.push(u);
+  store.write(users);
+  return { ok: true };
+}
+
+/** รีเซ็ต PIN ผู้ใช้ (กรณีลืมรหัส) — จัดการได้เฉพาะ role ที่ไม่สูงกว่าตน */
+export function resetPin(username, newPin, callerRole) {
+  const uname = String(username || '').trim();
+  if (!/^\d{4,12}$/.test(String(newPin || ''))) return { error: 'invalid_pin' };
+  const users = ensureSeed();
+  const idx = users.findIndex((u) => u.username.toLowerCase() === uname.toLowerCase());
+  if (idx === -1) return { error: 'not_found' };
+  if (callerRole && !canManageRole(callerRole, users[idx].role)) return { error: 'forbidden' };
+  users[idx] = { ...users[idx], pinHash: makeHash(newPin) };
+  store.write(users);
+  return { ok: true };
+}
+
+/** ตั้ง/ล้างสิทธิ์เข้าถึงข้อมูลของผู้ใช้ (allow/deny/overview) — จัดการได้เฉพาะ role ที่ไม่สูงกว่าตน */
+export function setUserAccess(username, access, callerRole) {
+  const uname = String(username || '').trim();
+  const users = ensureSeed();
+  const idx = users.findIndex((u) => u.username.toLowerCase() === uname.toLowerCase());
+  if (idx === -1) return { error: 'not_found' };
+  if (callerRole && !canManageRole(callerRole, users[idx].role)) return { error: 'forbidden' };
+  const clean = sanitizeAccess(access);
+  const next = { ...users[idx] };
+  if (clean) next.access = clean;
+  else delete next.access;
+  users[idx] = next;
   store.write(users);
   return { ok: true };
 }
