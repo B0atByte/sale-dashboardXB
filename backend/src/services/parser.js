@@ -181,6 +181,18 @@ export function parseSheetCsv(csvText) {
       lineTotal: parseNum(cellOf(row, 'ราคาสินค้าขาย')),
       netRevenue: parseNum(cellOf(row, 'รายรับจากคำสั่งซื้อ')),
       vtecPrice: parseNum(cellOf(row, 'ราคาคีย์ VTEC')),
+      // ค่าธรรมเนียม/ต้นทุนขาย (ใช้ในหน้า Shopee) — ชีตที่ไม่มีคอลัมน์เหล่านี้จะได้ 0
+      shipping: parseNum(cellOf(row, 'ค่าจัดส่งชำระโดย xBloom')),
+      commission: parseNum(cellOf(row, 'ค่าคอมมิชชั่น')),
+      // ค่าธรรมเนียมรวม = ค่าธรรมเนียมการสั่งซื้อ + บริการ + โปรโมท + ใช้บริการ + โครงสร้างพื้นฐาน + สนับสนุนร้าน + ธุรกรรมชำระเงิน
+      fee:
+        parseNum(cellOf(row, 'ค่าธรรมเนียมการสั่งซื้อ')) +
+        parseNum(cellOf(row, 'ค่าบริการ')) +
+        parseNum(cellOf(row, 'ค่าบริการโปรโมทสินค้า')) +
+        parseNum(cellOf(row, 'ค่าธรรมเนียมการใช้บริการ')) +
+        parseNum(cellOf(row, 'ค่าธรรมเนียมโครงสร้างพื้นฐานแพลตฟอร์ม')) +
+        parseNum(cellOf(row, 'ค่าธรรมเนียมสนับสนุนการเติบโตของร้านค้า')) +
+        parseNum(cellOf(row, 'ค่าธุรกรรมการชำระเงิน')),
     });
   }
 

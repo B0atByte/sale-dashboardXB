@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useLang } from "../i18n";
 import { toDateInputValue } from "../utils/format";
-import { CATEGORY_BUCKETS } from "../utils/data";
 import { IconRefresh, IconSearch } from "./Icons";
 
 function todayStr() {
@@ -25,7 +24,7 @@ const PRESETS = [
  * การ์ดตัวกรอง: ช่วงวันที่ + ปุ่มลัด + หมวดสินค้า + แคมเปญ + ค้นหาสินค้า
  * ทุกช่องมีผลทันที (ช่องค้นหาสินค้า debounce 400ms)
  */
-export default function FilterBar({ filters, campaigns = [], locations = [], onChange, onClear }) {
+export default function FilterBar({ filters, campaigns = [], categories = [], locations = [], onChange, onClear }) {
   const { t } = useLang();
   const [productInput, setProductInput] = useState(filters.product || "");
   // ป้ายชื่อ location: แปล "ออนไลน์" ตามภาษา, สาขาอื่นแสดงชื่อตรง ๆ
@@ -94,13 +93,13 @@ export default function FilterBar({ filters, campaigns = [], locations = [], onC
           </div>
         )}
 
-        {/* หมวดสินค้า */}
+        {/* หมวดสินค้า — ดึงจาก Category ในชีตโดยตรง (dynamic) */}
         <div className="flex flex-col gap-2">
           <span className={labelClass}>{t("filter.category")}</span>
           <select value={filters.category || ""} onChange={(e) => onChange({ category: e.target.value })} className={`${inputClass} min-w-40 cursor-pointer`}>
             <option value="">{t("filter.all")}</option>
-            {CATEGORY_BUCKETS.map((b) => (
-              <option key={b.key} value={b.key}>{t(`cat.${b.key}`)}</option>
+            {categories.map((c) => (
+              <option key={c} value={c}>{c}</option>
             ))}
           </select>
         </div>

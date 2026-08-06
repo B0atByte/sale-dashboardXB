@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useLang } from "../i18n";
 import { useSettings } from "../settings";
 import { platformColor, ONLINE_LOCATION } from "../utils/data";
-import { IconActivity, IconGrid, IconCoffee } from "./Icons";
+import { IconActivity, IconGrid, IconCoffee, IconBuilding } from "./Icons";
 
 /**
  * แถบเมนูด้านซ้าย (sidebar) — แสดงเฉพาะจอใหญ่ (lg ขึ้นไป)
@@ -37,7 +37,9 @@ export default function Sidebar({ platforms = [], active = "", onSelect, onReord
 
   /** ปุ่มช่องทาง 1 รายการ (ใช้ทั้ง ภาพรวม / ออนไลน์ / หน้าร้าน) */
   const renderItem = (item) => {
-    const isActive = (active || "") === item.name;
+    // ช่องทางจะ active ก็ต่อเมื่ออยู่หน้า dashboard และเลือกช่องนั้นอยู่ (ทั้ง sidebar active ทีละปุ่มเดียว)
+    // "ภาพรวม" (name="") ไม่โชว์ active — ให้ปุ่ม "แดชบอร์ด" เป็นตัวบอกสถานะ overview
+    const isActive = view === "dashboard" && Boolean(item.name) && (active || "") === item.name;
     const canDrag = Boolean(item.name) && Boolean(onReorder);
     return (
       <button
@@ -107,8 +109,11 @@ export default function Sidebar({ platforms = [], active = "", onSelect, onReord
             {[
               { v: "dashboard", label: t("nav.dashboard"), Icon: IconGrid },
               { v: "menu", label: t("nav.mainMenu"), Icon: IconCoffee },
+              { v: "xbloom", label: t("nav.xbloomView"), Icon: IconBuilding },
             ].map((it) => {
-              const on = view === it.v;
+              // "แดชบอร์ด" = overview → active เฉพาะตอนอยู่ dashboard และไม่ได้เลือกช่องทาง
+              // (ถ้าเลือกช่องทาง ให้ปุ่มช่องทางนั้น active แทน — ทั้ง sidebar active ทีละปุ่มเดียว)
+              const on = it.v === "dashboard" ? view === "dashboard" && !active : view === it.v;
               return (
                 <button
                   key={it.v}
@@ -128,8 +133,7 @@ export default function Sidebar({ platforms = [], active = "", onSelect, onReord
 
         <p className={groupLabel}>{t("nav.section")}</p>
 
-        {/* ภาพรวม (รวมทุกช่องทาง) — ซ่อนสำหรับผู้ใช้ที่ไม่มีสิทธิ์เห็นภาพรวม */}
-        {showOverview && renderItem({ name: "", label: t("nav.overview"), color: "#4f46e5" })}
+        {/* "ภาพรวม" ถูกลบออก — ซ้ำกับปุ่ม "แดชบอร์ด" (กดแดชบอร์ด = ดูภาพรวมทุกช่องทาง) */}
 
         {/* กลุ่มหน้าร้าน (ไว้บน) */}
         {storePlatforms.length > 0 && (

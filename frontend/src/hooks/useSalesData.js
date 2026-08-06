@@ -97,7 +97,7 @@ export default function useSalesData(filters, refreshMs = REFRESH_INTERVAL_MS) {
  * ดึงตัวเลือกฟิลเตอร์จาก summary แบบไม่กรอง (ช่องทาง + แคมเปญ) — เรียกครั้งเดียวตอน mount
  */
 export function useFilterOptions() {
-  const [options, setOptions] = useState({ platforms: [], campaigns: [], locations: [] });
+  const [options, setOptions] = useState({ platforms: [], campaigns: [], categories: [], locations: [] });
 
   useEffect(() => {
     const controller = new AbortController();
@@ -111,6 +111,7 @@ export function useFilterOptions() {
         setOptions({
           platforms,
           campaigns: data.campaigns ?? [],
+          categories: data.categories ?? [],
           locations: data.locations ?? [],
         });
       })

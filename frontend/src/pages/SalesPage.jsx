@@ -10,6 +10,7 @@ import FilterBar from "../components/FilterBar";
 import KpiCards from "../components/KpiCards";
 import ExecutiveSummary from "../components/ExecutiveSummary";
 import BeansReport from "../components/BeansReport";
+import XBloomView from "../components/XBloomView";
 import DonutChart from "../components/DonutChart";
 import TrendChart from "../components/TrendChart";
 import TopProducts from "../components/TopProducts";
@@ -23,10 +24,12 @@ import useSalesData, {
   useFilterOptions,
   useComparisons,
 } from "../hooks/useSalesData";
+import ShopeeFees from "../components/ShopeeFees";
 import {
   platformDonutFrom,
   categoryDonut,
   campaignDonut,
+  customerDonut,
   readPlatformOrder,
   savePlatformOrder,
   applyPlatformOrder,
@@ -57,7 +60,7 @@ export default function SalesPage({ onLogout, user }) {
 
   const { records, summary, updatedAt, stale, loading, error, refresh } =
     useSalesData(filters, settings.refreshIntervalMs);
-  const { platforms, campaigns, locations } = useFilterOptions();
+  const { platforms, campaigns, categories, locations } = useFilterOptions();
 
   // ลำดับช่องทางที่ผู้ใช้จัดเอง (ลากใน sidebar) — จำใน localStorage
   const [platformOrder, setPlatformOrder] = useState(readPlatformOrder);
@@ -88,6 +91,28 @@ export default function SalesPage({ onLogout, user }) {
   const setPlatform = (platform) => setFilters((f) => ({ ...f, platform }));
   const onFilterChange = (patch) => setFilters((f) => ({ ...f, ...patch }));
   const clearAll = () => setFilters(EMPTY_FILTERS);
+  // สลับมุมมอง — ไป "แดชบอร์ด" = ล้างช่องทางกลับเป็น overview (แทนปุ่มภาพรวมที่ลบไป)
+  const goView = (v) => {
+    setView(v);
+    if (v === "dashboard") setPlatform("");
+  };
+
+  // มุมมองเฉพาะช่องทาง
+  const platLower = (filters.platform || "").trim().toLowerCase();
+  const isB2B = platLower === "b2b";
+  // แพลตฟอร์มออนไลน์ = เลือกช่องทางแล้ว และไม่ใช่สาขาหน้าร้าน (เช่น Central World) → โชว์การ์ดค่าธรรมเนียม
+  const isOnlinePlatform = useMemo(() => {
+    if (!filters.platform) return false;
+    const stores = new Set((locations || []).filter((l) => l && l !== "ออนไลน์"));
+    return !stores.has(filters.platform);
+  }, [filters.platform, locations]);
+
+  // ค้นหาสินค้าในการ์ด "Sales by Channel" — พิมพ์ชื่อสินค้าเพื่อดูยอดแยกตามช่องทาง
+  const [channelProduct, setChannelProduct] = useState("");
+  const channelRecords = useMemo(() => {
+    const q = channelProduct.trim().toLowerCase();
+    return q ? records.filter((r) => String(r.productName || "").toLowerCase().includes(q)) : records;
+  }, [records, channelProduct]);
 
   // ถ้าไม่มีสิทธิ์เห็นภาพรวม แต่ยังไม่ได้เลือกช่องทาง → เลือกช่องทางแรกที่มีสิทธิ์ให้อัตโนมัติ
   useEffect(() => {
@@ -117,7 +142,7 @@ export default function SalesPage({ onLogout, user }) {
         showLog={isIt}
         onOpenLog={() => setLogOpen(true)}
         view={view}
-        onChangeView={setView}
+        onChangeView={goView}
         locations={locations}
         showOverview={canOverview}
       />
@@ -141,29 +166,36 @@ export default function SalesPage({ onLogout, user }) {
             {[
               { v: "dashboard", label: t("nav.dashboard") },
               { v: "menu", label: t("nav.mainMenu") },
-            ].map((it) => (
-              <button
-                key={it.v}
-                type="button"
-                onClick={() => setView(it.v)}
-                className={`flex-1 rounded-2xl px-4 py-2.5 text-xs font-black uppercase tracking-wider transition active:scale-95 ${
-                  view === it.v ? "bg-slate-800 text-white shadow-lg shadow-slate-200" : "border border-slate-100 bg-white text-slate-500"
-                }`}
-              >
-                {it.label}
-              </button>
-            ))}
+              { v: "xbloom", label: t("nav.xbloomView") },
+            ].map((it) => {
+              // "แดชบอร์ด" active เฉพาะตอน overview (ไม่ได้เลือกช่องทาง) → active ทีละปุ่มเดียว
+              const on = it.v === "dashboard" ? view === "dashboard" && !filters.platform : view === it.v;
+              return (
+                <button
+                  key={it.v}
+                  type="button"
+                  onClick={() => goView(it.v)}
+                  className={`flex-1 rounded-2xl px-4 py-2.5 text-xs font-black uppercase tracking-wider transition active:scale-95 ${
+                    on ? "bg-slate-800 text-white shadow-lg shadow-slate-200" : "border border-slate-100 bg-white text-slate-500"
+                  }`}
+                >
+                  {it.label}
+                </button>
+              );
+            })}
           </div>
 
           {view === "menu" ? (
             <BeansReport />
+          ) : view === "xbloom" ? (
+            <XBloomView />
           ) : (
           <>
           <div className="lg:hidden">
             <PlatformTabs platforms={orderedPlatforms} active={filters.platform} onSelect={setPlatform} locations={locations} showOverview={canOverview} />
           </div>
 
-          <FilterBar filters={filters} campaigns={campaigns} locations={locations} onChange={onFilterChange} onClear={clearAll} />
+          <FilterBar filters={filters} campaigns={campaigns} categories={categories} locations={locations} onChange={onFilterChange} onClear={clearAll} />
 
           {error && <ErrorBanner onRetry={refresh} />}
 
@@ -172,6 +204,9 @@ export default function SalesPage({ onLogout, user }) {
           ) : (
             summary && (
               <div className={`space-y-6 transition-opacity ${loading ? "opacity-60" : "opacity-100"}`}>
+                {/* กราฟแนวโน้มยอดขายรายวัน — ย้ายขึ้นบนสุด */}
+                <TrendChart records={records} />
+
                 {isOverview && canOverview && <ExecutiveSummary records={records} />}
 
                 <KpiCards kpi={summary.kpi} records={records} comparisons={comparisons} />
@@ -180,25 +215,35 @@ export default function SalesPage({ onLogout, user }) {
                   <AiInsight from={filters.from} to={filters.to} platform={filters.platform} />
                 )}
 
-                {/* โดนัท 2 คอลัมน์ */}
-                <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+                {/* โดนัท + Top 5 (จอใหญ่ = 3 คอลัมน์) */}
+                <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
                   {isOverview ? (
-                    <DonutChart title={t("chart.platformShare")} subtitle={t("chart.platformShareSub")} records={records} build={platformDonutFrom} />
+                    <DonutChart
+                      title={t("chart.platformShare")}
+                      subtitle={t("chart.platformShareSub")}
+                      records={channelRecords}
+                      build={platformDonutFrom}
+                      search={channelProduct}
+                      onSearch={setChannelProduct}
+                      searchPlaceholder={t("filter.product")}
+                    />
+                  ) : isB2B ? (
+                    <DonutChart title={t("chart.customerShare")} subtitle={t("chart.customerShareSub")} records={records} build={customerDonut} />
                   ) : (
                     <DonutChart title={t("chart.campaignShare")} subtitle={t("chart.campaignShareSub")} records={records} build={campaignDonut} />
                   )}
                   <DonutChart title={t("chart.categoryShare")} subtitle={t("chart.categoryShareSub")} records={records} build={categoryDonut} />
-                </div>
-
-                {/* แนวโน้ม + Top 5 */}
-                <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
-                  <div className="lg:col-span-2">
-                    <TrendChart records={records} />
-                  </div>
                   <TopProducts products={summary.topProducts} />
                 </div>
 
-                <SalesTable records={records} filtersKey={filtersKey} />
+                {/* แพลตฟอร์มออนไลน์: สรุปค่าธรรมเนียม/รายรับสุทธิ + รายเคส */}
+                {isOnlinePlatform && <ShopeeFees records={records} />}
+
+                <SalesTable
+                  records={records}
+                  filtersKey={filtersKey}
+                  hideColumns={isB2B ? ["platform", "campaign"] : []}
+                />
               </div>
             )
           )}

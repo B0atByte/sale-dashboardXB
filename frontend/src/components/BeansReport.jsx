@@ -1,10 +1,15 @@
 import { useEffect, useMemo, useState } from "react";
 import { useLang } from "../i18n";
-import { gmvOf, isBeanExport } from "../utils/data";
+import { gmvOf } from "../utils/data";
 import { formatCurrency, formatNumber, formatShortDate } from "../utils/format";
 import { IconCoffee, IconRefresh, IconSearch, IconX } from "./Icons";
 import TrendChart from "./TrendChart";
 import ToggleGroup from "./ToggleGroup";
+
+// หมวด (Category ในชีต) ที่นับเป็น "เมล็ดกาแฟและชา" — ไม่รวม Accessories/เครื่อง
+// อ่านจากค่า Category ตรง ๆ (dynamic) — เพิ่ม "sachet" เผื่อในอนาคตแยกหมวดในชีต
+const BEAN_TEA_CATEGORIES = ["beans", "xpod", "tea", "sachet"];
+const isBeanTea = (r) => BEAN_TEA_CATEGORIES.includes(String(r.category || "").trim().toLowerCase());
 
 /** ต่างกันกี่วันระหว่าง 2 วันที่ (YYYY-MM-DD) */
 function daysBetween(a, b) {
@@ -30,6 +35,7 @@ export default function BeansReport() {
   const [error, setError] = useState(false);
   const [gran, setGran] = useState("year"); // year | month | day
   const [channel, setChannel] = useState(""); // "" = ทุกช่องทาง
+  const [type, setType] = useState(""); // "" = ทุกชนิด (Beans/xPod/Tea/...)
   const [query, setQuery] = useState("");
   const [anchor, setAnchor] = useState(""); // วันอ้างอิงที่เลือก (YYYY-MM-DD)
 
@@ -39,7 +45,7 @@ export default function BeansReport() {
     fetch(`/api/sales${force ? "?fresh=1" : ""}`, { credentials: "same-origin" })
       .then((r) => (r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`))))
       .then((d) => {
-        const beans = (d.records ?? []).filter(isBeanExport);
+        const beans = (d.records ?? []).filter(isBeanTea);
         setRecords(beans);
         const dates = beans.map((r) => r.date).filter(Boolean);
         if (dates.length) {
@@ -75,13 +81,25 @@ export default function BeansReport() {
     return [...set].sort((a, b) => b.localeCompare(a));
   }, [beanDates]);
 
-  // กรองตามช่องทางก่อน
+  // ชนิด (Category ในชีต) ที่มีอยู่จริง — ตัวเลือกใน dropdown ชนิด
+  const types = useMemo(() => {
+    const set = new Set();
+    for (const r of records) {
+      const c = String(r.category || "").trim();
+      if (c) set.add(c);
+    }
+    return [...set].sort((a, b) => a.localeCompare(b));
+  }, [records]);
+
+  // กรองตามช่องทาง + ชนิด ก่อน
   const channelScoped = useMemo(
     () =>
-      channel
-        ? records.filter((r) => String(r.platform || "").trim() === channel)
-        : records,
-    [records, channel]
+      records.filter(
+        (r) =>
+          (!channel || String(r.platform || "").trim() === channel) &&
+          (!type || String(r.category || "").trim() === type)
+      ),
+    [records, channel, type]
   );
 
   // จำกัดตามช่วงที่เลือก (ปี = 4 ตัว, เดือน = 7 ตัว, วัน = ทั้งวันที่)
@@ -231,6 +249,21 @@ export default function BeansReport() {
               ))}
             </select>
           </div>
+
+          {/* ชนิด (Beans / xPod / Tea ... จาก Category ในชีต) */}
+          <div className="flex items-center gap-2">
+            <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">
+              {t("report.type")}
+            </span>
+            <select value={type} onChange={(e) => setType(e.target.value)} className={fieldCls}>
+              <option value="">{t("report.allTypes")}</option>
+              {types.map((c) => (
+                <option key={c} value={c}>
+                  {c}
+                </option>
+              ))}
+            </select>
+          </div>
         </div>
 
         {/* สรุปยอด (ตามตัวกรอง) */}
@@ -318,6 +351,7 @@ export default function BeansReport() {
                   <thead>
                     <tr className="border-b border-slate-100 text-left text-[10px] font-black uppercase tracking-widest text-slate-400">
                       <th className="px-3 py-2.5">{t("report.colBean")}</th>
+                      <th className="px-3 py-2.5">{t("report.colType")}</th>
                       <th className="px-3 py-2.5">{t("report.colStatus")}</th>
                       <th className="px-3 py-2.5 text-right">{t("report.colUnits")}</th>
                       <th className="px-3 py-2.5 text-right">{t("report.colGmv")}</th>
@@ -332,10 +366,14 @@ export default function BeansReport() {
                       >
                         <td className="px-3 py-3">
                           <p className="font-bold text-slate-800">{p.name}</p>
-                          {p.category && (
-                            <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">
+                        </td>
+                        <td className="px-3 py-3">
+                          {p.category ? (
+                            <span className="rounded-md bg-slate-100 px-2 py-0.5 text-[11px] font-bold text-slate-600">
                               {p.category}
-                            </p>
+                            </span>
+                          ) : (
+                            <span className="text-slate-300">—</span>
                           )}
                         </td>
                         <td className="px-3 py-3">

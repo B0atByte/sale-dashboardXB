@@ -25,6 +25,26 @@ export function isCentralWorld(r) {
     .includes("central world");
 }
 
+/** แถวนี้เป็น "เครื่อง xBloom" ไหม — หมวด xBloom Studio (ทนกรณี Categroy ว่างแล้ว fallback เป็นชื่อรุ่น) */
+export function isMachine(r) {
+  const text = `${r.category || ""} ${r.productName || ""}`.toLowerCase();
+  return text.includes("xbloom studio");
+}
+
+// สีเครื่อง xBloom (จับจากชื่อสินค้า) — key = คำที่ค้นในชื่อ, color = สีในโดนัท
+export const MACHINE_COLORS = [
+  { key: "midnight black", label: "Midnight Black", color: "#0f172a" },
+  { key: "moonlight white", label: "Moonlight White", color: "#cbd5e1" },
+  { key: "sage green", label: "Sage Green", color: "#22c55e" },
+  { key: "twilight", label: "Twilight", color: "#7c3aed" },
+];
+
+/** จับสีเครื่องจากชื่อสินค้า — คืน entry ใน MACHINE_COLORS หรือ null ถ้าไม่ตรง */
+export function machineColorOf(r) {
+  const text = String(r.productName || "").toLowerCase();
+  return MACHINE_COLORS.find((c) => text.includes(c.key)) || null;
+}
+
 /** แถวนี้เป็น "เมล็ดกาแฟ" (Beans/Export) ไหม — ดูจากชื่อสินค้า + หมวด */
 export function isBeanExport(r) {
   const text = `${r.productName || ""} ${r.category || ""}`.toLowerCase();
@@ -186,18 +206,38 @@ export function platformDonutFrom(records = [], metric = "gmv", t = (k) => k) {
     .sort((a, b) => b.value - a.value);
 }
 
-/** โดนัทหมวดสินค้า จาก records — ชื่อกลุ่มแปลผ่าน t */
+// พาเลตต์หมวดสินค้า (ใช้ตามลำดับหลังเรียงชื่อหมวดตามตัวอักษร — สีคงที่ต่อชื่อ)
+const CATEGORY_PALETTE = [
+  "#4f46e5", "#059669", "#d97706", "#e11d48", "#0891b2",
+  "#7c3aed", "#ca8a04", "#0d9488", "#db2777", "#2563eb",
+];
+
+/**
+ * โดนัทหมวดสินค้า — จัดกลุ่มตามค่า "Category" ในชีตโดยตรง (dynamic)
+ * แก้ชื่อหมวดในชีตแล้วเปลี่ยนตามอัตโนมัติ ไม่ผูกกับกลุ่มตายตัว
+ * สีผูกกับชื่อหมวด (เรียงตามตัวอักษร) เพื่อให้สีคงที่แม้ค่าจะเปลี่ยน
+ */
 export function categoryDonut(records = [], metric = "gmv", t = (k) => k) {
   const totals = new Map();
   for (const r of records) {
-    const k = bucketKeyOf(r);
+    const k = String(r.category || "").trim() || t("common.na");
     totals.set(k, (totals.get(k) || 0) + metricOf(r, metric));
   }
-  return CATEGORY_BUCKETS.map((b) => ({
-    name: t(`cat.${b.key}`),
-    value: totals.get(b.key) || 0,
-    color: b.color,
-  })).filter((d) => d.value > 0);
+  const names = [...totals.keys()].sort((a, b) => a.localeCompare(b));
+  const colorFor = Object.fromEntries(
+    names.map((n, i) => [n, CATEGORY_PALETTE[i % CATEGORY_PALETTE.length]])
+  );
+  let items = names
+    .map((n) => ({ name: n, value: totals.get(n), color: colorFor[n] }))
+    .filter((d) => d.value > 0);
+  // ยุบหมวดย่อยที่เกิน 8 อันดับเป็น "อื่น ๆ" (กันชื่อสินค้าที่หลุดมาเป็นหมวดตอน Categroy ว่าง)
+  if (items.length > 8) {
+    const sorted = [...items].sort((a, b) => b.value - a.value);
+    const keep = sorted.slice(0, 7);
+    const otherVal = sorted.slice(7).reduce((s, x) => s + x.value, 0);
+    items = [...keep, { name: t("common.other"), value: otherVal, color: OTHER_COLOR }];
+  }
+  return items.sort((a, b) => b.value - a.value);
 }
 
 /** โดนัทแคมเปญ จาก records — เกิน 7 กลุ่มยุบกลุ่มเล็กสุดเป็น "อื่น ๆ" */
@@ -216,6 +256,27 @@ export function campaignDonut(records = [], metric = "gmv", t = (k) => k) {
     value: totals.get(n),
     color: colorFor[n],
   }));
+  if (items.length > 7) {
+    const sorted = [...items].sort((a, b) => b.value - a.value);
+    const keep = sorted.slice(0, 6);
+    const otherVal = sorted.slice(6).reduce((s, x) => s + x.value, 0);
+    items = [...keep, { name: t("common.other"), value: otherVal, color: OTHER_COLOR }];
+  }
+  return items.filter((d) => d.value > 0).sort((a, b) => b.value - a.value);
+}
+
+/** โดนัทสัดส่วนลูกค้า จาก records (ใช้ในหน้า B2B) — เกิน 7 รายยุบเป็น "อื่น ๆ" */
+export function customerDonut(records = [], metric = "gmv", t = (k) => k) {
+  const totals = new Map();
+  for (const r of records) {
+    const k = String(r.customer || "").trim() || t("common.na");
+    totals.set(k, (totals.get(k) || 0) + metricOf(r, metric));
+  }
+  const names = [...totals.keys()].sort((a, b) => a.localeCompare(b));
+  const colorFor = Object.fromEntries(
+    names.map((n, i) => [n, CAMPAIGN_PALETTE[i % CAMPAIGN_PALETTE.length]])
+  );
+  let items = names.map((n) => ({ name: n, value: totals.get(n), color: colorFor[n] }));
   if (items.length > 7) {
     const sorted = [...items].sort((a, b) => b.value - a.value);
     const keep = sorted.slice(0, 6);

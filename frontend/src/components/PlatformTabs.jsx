@@ -12,7 +12,8 @@ export default function PlatformTabs({ platforms = [], active = "", onSelect, lo
   const storePlatforms = platforms.filter((p) => storeSet.has(p));
 
   const tab = (name, label, color) => {
-    const isActive = (active || "") === name;
+    // "ภาพรวม" (name="") ไม่โชว์ active — กันไฮไลต์ซ้ำกับปุ่ม "แดชบอร์ด"
+    const isActive = Boolean(name) && (active || "") === name;
     return (
       <button
         key={name || "overview"}
@@ -36,7 +37,7 @@ export default function PlatformTabs({ platforms = [], active = "", onSelect, lo
 
   return (
     <div className="thin-scrollbar -mx-1 flex items-center gap-2 overflow-x-auto px-1 pb-1">
-      {showOverview && tab("", t("nav.overview"), "#4f46e5")}
+      {/* "ภาพรวม" ถูกลบออก — ซ้ำกับปุ่ม "แดชบอร์ด" */}
       {storePlatforms.length > 0 && (
         <>
           <span className={groupTag}>{t("nav.groupStore")}</span>

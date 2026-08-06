@@ -27,8 +27,10 @@ const COLUMNS = [
 /**
  * ตารางรายการขาย: คลิกหัวคอลัมน์เพื่อเรียง (มาก↔น้อย) ได้ทุกคอลัมน์ + ค้นหา + แบ่งหน้า + ส่งออก CSV
  */
-export default function SalesTable({ records = [], filtersKey = "" }) {
+export default function SalesTable({ records = [], filtersKey = "", hideColumns = [] }) {
   const { t, lang } = useLang();
+  const hide = (k) => hideColumns.includes(k);
+  const columns = COLUMNS.filter((c) => !hide(c.key));
   const [page, setPage] = useState(1);
   const [query, setQuery] = useState("");
   const [sortKey, setSortKey] = useState("date");
@@ -130,7 +132,7 @@ export default function SalesTable({ records = [], filtersKey = "" }) {
         <table className="w-full min-w-[900px] text-sm">
           <thead className="bg-slate-50">
             <tr>
-              {COLUMNS.map((c) => {
+              {columns.map((c) => {
                 const active = c.key === sortKey;
                 return (
                   <th key={c.key} className={`${th} ${c.align === "right" ? "text-right" : ""}`}>
@@ -153,7 +155,7 @@ export default function SalesTable({ records = [], filtersKey = "" }) {
             {rows.length === 0 ? (
               <tr>
                 <td
-                  colSpan={8}
+                  colSpan={columns.length}
                   className="px-4 py-16 text-center text-slate-400"
                 >
                   {t("table.noData")}
@@ -165,9 +167,11 @@ export default function SalesTable({ records = [], filtersKey = "" }) {
                   <td className="whitespace-nowrap px-4 py-3 font-medium text-slate-600">
                     {formatDate(r.date, lang)}
                   </td>
-                  <td className="whitespace-nowrap px-4 py-3">
-                    <PlatformBadge platform={r.platform} />
-                  </td>
+                  {!hide("platform") && (
+                    <td className="whitespace-nowrap px-4 py-3">
+                      <PlatformBadge platform={r.platform} />
+                    </td>
+                  )}
                   <td
                     className="max-w-40 truncate px-4 py-3 text-slate-600"
                     title={r.customer}
@@ -183,12 +187,14 @@ export default function SalesTable({ records = [], filtersKey = "" }) {
                   <td className="whitespace-nowrap px-4 py-3 text-slate-500">
                     {r.category}
                   </td>
-                  <td
-                    className="max-w-40 truncate px-4 py-3 text-slate-500"
-                    title={r.campaign}
-                  >
-                    {r.campaign || "-"}
-                  </td>
+                  {!hide("campaign") && (
+                    <td
+                      className="max-w-40 truncate px-4 py-3 text-slate-500"
+                      title={r.campaign}
+                    >
+                      {r.campaign || "-"}
+                    </td>
+                  )}
                   <td className="whitespace-nowrap px-4 py-3 text-right font-medium text-slate-600">
                     {formatNumber(r.quantity)}
                   </td>

@@ -4,6 +4,7 @@ import { useLang } from "../i18n";
 import ToggleGroup from "./ToggleGroup";
 import { scopeLatest } from "../utils/data";
 import { formatCurrency, formatCompactCurrency, formatNumber } from "../utils/format";
+import { IconSearch, IconX } from "./Icons";
 
 /**
  * โดนัทชาร์ต + แถบ toggle (ปี/เดือน/วัน + ยอดขาย/ชิ้น) + legend + ยอดรวมตรงกลาง
@@ -11,7 +12,7 @@ import { formatCurrency, formatCompactCurrency, formatNumber } from "../utils/fo
  *   ปี/เดือน/วัน = ดูสัดส่วนของ "ช่วงล่าสุด" (ปี/เดือน/วันล่าสุดของข้อมูลที่กรองอยู่)
  * - โหมดเดิม: ส่ง data มาตรง ๆ (ไม่มี toggle)
  */
-export default function DonutChart({ title, subtitle, data: dataProp, records, build }) {
+export default function DonutChart({ title, subtitle, data: dataProp, records, build, search, onSearch, searchPlaceholder }) {
   const { t } = useLang();
   const [gran, setGran] = useState("year");
   const [metric, setMetric] = useState("gmv");
@@ -64,6 +65,29 @@ export default function DonutChart({ title, subtitle, data: dataProp, records, b
           </p>
         )}
       </div>
+
+      {/* ช่องค้นหาสินค้า (โหมด Sales by Channel) — พิมพ์ชื่อสินค้าเพื่อดูยอดรายช่องทาง */}
+      {onSearch && (
+        <div className="relative mb-4">
+          <IconSearch className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+          <input
+            type="text"
+            value={search || ""}
+            onChange={(e) => onSearch(e.target.value)}
+            placeholder={searchPlaceholder || t("filter.product")}
+            className="w-full rounded-xl border border-slate-200 bg-slate-50 py-2 pl-9 pr-9 text-sm font-medium text-slate-700 outline-none transition focus:border-indigo-400 focus:bg-white"
+          />
+          {search && (
+            <button
+              type="button"
+              onClick={() => onSearch("")}
+              className="absolute right-2 top-1/2 flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded-lg text-slate-400 transition hover:bg-slate-100 hover:text-slate-600"
+            >
+              <IconX className="h-4 w-4" />
+            </button>
+          )}
+        </div>
+      )}
 
       {data.length === 0 ? (
         <p className="flex-1 py-16 text-center text-sm text-slate-400">

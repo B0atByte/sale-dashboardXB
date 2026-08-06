@@ -55,8 +55,9 @@ export function applyFilters(records, { from, to, platform, category, campaign, 
     out = out.filter((r) => r.platform.trim().toLowerCase() === want);
   }
   if (category) {
+    // หมวดสินค้าอ่านจากค่า Category ในชีตตรง ๆ (dynamic) — เทียบ case-insensitive
     const want = String(category).trim().toLowerCase();
-    out = out.filter((r) => bucketKeyOf(r) === want);
+    out = out.filter((r) => String(r.category || '').trim().toLowerCase() === want);
   }
   if (campaign) {
     const want = String(campaign).trim().toLowerCase();
@@ -80,7 +81,9 @@ export function computeSummary(records) {
   const orderNos = new Set();
   const byProduct = new Map();
   const byPlatformMap = new Map();
+  const byCustomerMap = new Map();
   const campaignSet = new Set();
+  const categorySet = new Set();
   const locationSet = new Set();
 
   for (const r of records) {
@@ -92,6 +95,19 @@ export function computeSummary(records) {
     totalNetRevenue += r.netRevenue;
     if (r.orderNo) orderNos.add(r.orderNo);
     if (r.campaign) campaignSet.add(String(r.campaign).trim());
+    if (r.category) categorySet.add(String(r.category).trim());
+
+    // สรุปตามลูกค้า (ใช้ในหน้า B2B — สัดส่วนลูกค้า)
+    const custKey = String(r.customer || '').trim();
+    if (custKey) {
+      if (!byCustomerMap.has(custKey)) {
+        byCustomerMap.set(custKey, { customer: custKey, gmv: 0, units: 0, orders: new Set() });
+      }
+      const cu = byCustomerMap.get(custKey);
+      cu.gmv += g;
+      cu.units += r.quantity;
+      if (r.orderNo) cu.orders.add(r.orderNo);
+    }
 
     const pKey = r.productName;
     if (!byProduct.has(pKey)) {
@@ -134,7 +150,16 @@ export function computeSummary(records) {
         orders: pl.orders.size,
         units: round2(pl.units),
       })),
+    byCustomer: [...byCustomerMap.values()]
+      .sort((a, b) => b.gmv - a.gmv)
+      .map((cu) => ({
+        customer: cu.customer,
+        gmv: round2(cu.gmv),
+        orders: cu.orders.size,
+        units: round2(cu.units),
+      })),
     campaigns: [...campaignSet].sort((a, b) => a.localeCompare(b)),
+    categories: [...categorySet].sort((a, b) => a.localeCompare(b)),
     locations: [...locationSet].sort((a, b) => a.localeCompare(b)),
   };
 }
