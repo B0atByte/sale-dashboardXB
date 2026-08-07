@@ -14,8 +14,15 @@ const PRESETS = [
     range: () => { const d = new Date(); d.setDate(d.getDate() - 6); return { from: toDateInputValue(d), to: todayStr() }; },
   },
   {
+    // "เดือนนี้" = ทั้งเดือน (วันที่ 1 → วันสุดท้ายของเดือน) — ไม่ใช่แค่ถึงวันนี้
+    // (ถ้าใช้ "ถึงวันนี้" ช่วงจะไปซ้ำกับ "7 วันล่าสุด" ในต้นเดือน ทำให้ไฮไลต์ผิดปุ่ม)
     key: "preset.thisMonth",
-    range: () => { const n = new Date(); return { from: toDateInputValue(new Date(n.getFullYear(), n.getMonth(), 1)), to: todayStr() }; },
+    range: () => {
+      const n = new Date();
+      const first = new Date(n.getFullYear(), n.getMonth(), 1);
+      const last = new Date(n.getFullYear(), n.getMonth() + 1, 0);
+      return { from: toDateInputValue(first), to: toDateInputValue(last) };
+    },
   },
   { key: "preset.all", range: () => ({ from: "", to: "" }) },
 ];

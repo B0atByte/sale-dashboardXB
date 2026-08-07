@@ -303,23 +303,6 @@ export function customerDonut(records = [], metric = "gmv", t = (k) => k) {
   return items.filter((d) => d.value > 0).sort((a, b) => b.value - a.value);
 }
 
-/**
- * โดนัทสีเครื่อง xBloom จาก records -> [{name,value,color}]
- * metric = "units" (นับจำนวนเครื่อง, ค่าเริ่มต้นของหน้า xBloom View) หรือ "gmv" (ยอดขาย ฿)
- */
-export function machineColorDonut(records = [], metric = "units", t = (k) => k) {
-  const map = new Map();
-  for (const r of records) {
-    const c = machineColorOf(r);
-    const name = c ? c.label : t("common.other");
-    const color = c ? c.color : OTHER_COLOR;
-    const cur = map.get(name) || { name, value: 0, color };
-    cur.value += metricOf(r, metric);
-    map.set(name, cur);
-  }
-  return [...map.values()].filter((d) => d.value > 0).sort((a, b) => b.value - a.value);
-}
-
 /** ซีรีส์รายวัน [{date,gmv,orders,units}] เรียงจากวันเก่าไปใหม่ */
 export function dailySeries(records = []) {
   const byDate = new Map();
