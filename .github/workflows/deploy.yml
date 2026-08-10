@@ -1,0 +1,89 @@
+name: Deploy
+
+# Auto-deploy ไป VPS เมื่อ push เข้า main (หรือกดรันเองจากแท็บ Actions)
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+# กันไม่ให้ deploy ซ้อนกัน (รอคิวทีละรอบ ไม่ยกเลิกรอบที่กำลังรัน)
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+jobs:
+  test:
+    name: Test & build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Backend tests
+        working-directory: backend
+        run: npm ci && npm test
+      - name: Frontend build
+        working-directory: frontend
+        run: npm ci && npm run build
+      - name: Validate Docker images build
+        run: docker compose build
+
+  deploy:
+    name: Deploy to VPS
+    needs: test
+    # VPS เป็น IP ภายใน (10.1.45.105) → ต้องใช้ self-hosted runner ที่อยู่ในเครือข่ายเดียวกัน
+    # (แนะนำ: ลง runner ไว้บน VPS เลย). ถ้า VPS มี IP/โดเมนสาธารณะ เปลี่ยนเป็น ubuntu-latest ได้
+    runs-on: self-hosted
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Preflight — ตรวจว่า secrets ครบไหม
+        id: pre
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_USER: ${{ secrets.VPS_USER }}
+          VPS_SSH_KEY: ${{ secrets.VPS_SSH_KEY }}
+        run: |
+          if [ -n "$VPS_HOST" ] && [ -n "$VPS_USER" ] && [ -n "$VPS_SSH_KEY" ]; then
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::ยังไม่ได้ตั้ง secrets (VPS_HOST/VPS_USER/VPS_SSH_KEY) — ข้ามขั้น deploy"
+          fi
+
+      - name: ตั้งค่า SSH
+        if: steps.pre.outputs.ready == 'true'
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_SSH_KEY: ${{ secrets.VPS_SSH_KEY }}
+        run: |
+          mkdir -p ~/.ssh && chmod 700 ~/.ssh
+          printf '%s\n' "$VPS_SSH_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -H "$VPS_HOST" >> ~/.ssh/known_hosts 2>/dev/null || true
+
+      - name: Deploy + health check + rollback
+        if: steps.pre.outputs.ready == 'true'
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_USER: ${{ secrets.VPS_USER }}
+        run: |
+          ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=accept-new \
+            "$VPS_USER@$VPS_HOST" \
+            'APP_DIR=/data/apps/sale-dashboard bash -s' < scripts/deploy-remote.sh
+
+      - name: Notify Discord
+        if: always()
+        uses: tsickert/discord-webhook@v6
+        with:
+          webhook-url: ${{ secrets.DISCORD_WEBHOOK }}
+          username: CI/CD
+          avatar-url: https://i.imgur.com/4M34hi2.png
+          title: |
+            ${{ job.status == 'success' && '✅ Deploy สำเร็จ' || '❌ Deploy ล้มเหลว' }}
+          description: |
+            **xBloom Sale Dashboard**
+            Branch: ${{ github.ref_name }}
+            Commit: ${{ github.sha }}
+            Status: ${{ job.status }}
