@@ -1,6 +1,6 @@
 name: Deploy
 
-# push เข้า main → test → deploy บน VPS (self-hosted runner ติดตั้งบน VPS เอง จึงรันตรงได้ ไม่ต้อง SSH)
+# push เข้า main → test → deploy บน VPS (self-hosted runner) → แจ้ง Discord (บน runner ของ GitHub)
 on:
   push:
     branches: [main]
@@ -30,6 +30,8 @@ jobs:
     name: Deploy on VPS
     needs: test
     runs-on: self-hosted
+    # ไม่มี third-party action ในงานนี้ → "Set up job" ไม่ต้องโหลดอะไรจากเน็ต
+    # (self-hosted runner บน VPS ที่ออกเน็ตจำกัดจะได้ไม่พังตอน setup)
     steps:
       - name: Deploy + health check + rollback
         run: |
@@ -63,17 +65,22 @@ jobs:
             exit 1
           fi
 
+  notify:
+    name: Notify Discord
+    needs: [deploy]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
       - name: Notify Discord
-        if: always()
         uses: tsickert/discord-webhook@v6
         with:
           webhook-url: ${{ secrets.DISCORD_WEBHOOK }}
           username: CI/CD
           avatar-url: https://i.imgur.com/4M34hi2.png
           title: |
-            ${{ job.status == 'success' && '✅ Deploy สำเร็จ' || '❌ Deploy ล้มเหลว' }}
+            ${{ needs.deploy.result == 'success' && '✅ Deploy สำเร็จ' || '❌ Deploy ล้มเหลว' }}
           description: |
             **xBloom Sale Dashboard**
             Branch: ${{ github.ref_name }}
             Commit: ${{ github.sha }}
-            Status: ${{ job.status }}
+            Status: ${{ needs.deploy.result }}
