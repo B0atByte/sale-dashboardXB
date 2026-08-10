@@ -1,12 +1,11 @@
 name: Deploy
 
-# Auto-deploy ไป VPS เมื่อ push เข้า main (หรือกดรันเองจากแท็บ Actions)
+# push เข้า main → test → deploy บน VPS (self-hosted runner ติดตั้งบน VPS เอง จึงรันตรงได้ ไม่ต้อง SSH)
 on:
   push:
     branches: [main]
   workflow_dispatch:
 
-# กันไม่ให้ deploy ซ้อนกัน (รอคิวทีละรอบ ไม่ยกเลิกรอบที่กำลังรัน)
 concurrency:
   group: deploy-production
   cancel-in-progress: false
@@ -26,52 +25,43 @@ jobs:
       - name: Frontend build
         working-directory: frontend
         run: npm ci && npm run build
-      - name: Validate Docker images build
-        run: docker compose build
 
   deploy:
-    name: Deploy to VPS
+    name: Deploy on VPS
     needs: test
-    # VPS เป็น IP ภายใน (10.1.45.105) → ต้องใช้ self-hosted runner ที่อยู่ในเครือข่ายเดียวกัน
-    # (แนะนำ: ลง runner ไว้บน VPS เลย). ถ้า VPS มี IP/โดเมนสาธารณะ เปลี่ยนเป็น ubuntu-latest ได้
     runs-on: self-hosted
     steps:
-      - uses: actions/checkout@v4
-
-      - name: Preflight — ตรวจว่า secrets ครบไหม
-        id: pre
-        env:
-          VPS_HOST: ${{ secrets.VPS_HOST }}
-          VPS_USER: ${{ secrets.VPS_USER }}
-          VPS_SSH_KEY: ${{ secrets.VPS_SSH_KEY }}
-        run: |
-          if [ -n "$VPS_HOST" ] && [ -n "$VPS_USER" ] && [ -n "$VPS_SSH_KEY" ]; then
-            echo "ready=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "ready=false" >> "$GITHUB_OUTPUT"
-            echo "::warning::ยังไม่ได้ตั้ง secrets (VPS_HOST/VPS_USER/VPS_SSH_KEY) — ข้ามขั้น deploy"
-          fi
-
-      - name: ตั้งค่า SSH
-        if: steps.pre.outputs.ready == 'true'
-        env:
-          VPS_HOST: ${{ secrets.VPS_HOST }}
-          VPS_SSH_KEY: ${{ secrets.VPS_SSH_KEY }}
-        run: |
-          mkdir -p ~/.ssh && chmod 700 ~/.ssh
-          printf '%s\n' "$VPS_SSH_KEY" > ~/.ssh/deploy_key
-          chmod 600 ~/.ssh/deploy_key
-          ssh-keyscan -H "$VPS_HOST" >> ~/.ssh/known_hosts 2>/dev/null || true
-
       - name: Deploy + health check + rollback
-        if: steps.pre.outputs.ready == 'true'
-        env:
-          VPS_HOST: ${{ secrets.VPS_HOST }}
-          VPS_USER: ${{ secrets.VPS_USER }}
         run: |
-          ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=accept-new \
-            "$VPS_USER@$VPS_HOST" \
-            'APP_DIR=/data/apps/sale-dashboard bash -s' < scripts/deploy-remote.sh
+          set -euo pipefail
+          cd /data/apps/sale-dashboard
+
+          PREV="$(git rev-parse HEAD)"
+          echo "==> current: $PREV"
+          git fetch origin main
+          git reset --hard origin/main
+          echo "==> deploying: $(git rev-parse HEAD)"
+
+          docker compose build
+          docker compose up -d
+
+          # health check (retry ~60s) กับ URL production จริง
+          ok=0
+          for _ in $(seq 1 20); do
+            if curl -fsS https://bh.b-happiness.co.th/sales/ >/dev/null 2>&1; then ok=1; break; fi
+            sleep 3
+          done
+
+          if [ "$ok" -eq 1 ]; then
+            echo "OK — health check ผ่าน"
+            docker image prune -f >/dev/null 2>&1 || true
+          else
+            echo "!!! health check ล้มเหลว — rollback ไป $PREV"
+            git reset --hard "$PREV"
+            docker compose build
+            docker compose up -d
+            exit 1
+          fi
 
       - name: Notify Discord
         if: always()
