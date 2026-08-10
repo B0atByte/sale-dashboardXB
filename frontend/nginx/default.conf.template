@@ -29,7 +29,9 @@ server {
     # SECURITY: proxy /api/ ไปยัง backend พร้อมแนบ x-api-key ฝั่งเซิร์ฟเวอร์
     # เบราว์เซอร์ไม่เคยเห็นหรือถือคีย์นี้เลย (location นี้ไม่มี add_header จึงรับ header ด้านบนสืบทอดมา)
     location /api/ {
-        proxy_pass http://backend:3001;
+        # ใช้ alias เฉพาะ "sd-backend" (ไม่ใช่ "backend") กันชื่อชนกับ container อื่น
+        # เมื่อ frontend อยู่บนเน็ต lms ของ Caddy ด้วย (ที่มี "backend" ของโปรเจกต์อื่น)
+        proxy_pass http://sd-backend:3001;
         proxy_http_version 1.1;
         proxy_set_header x-api-key "${API_KEY}";
         proxy_set_header Host $host;

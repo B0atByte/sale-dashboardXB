@@ -28,6 +28,11 @@ services:
     depends_on:
       redis:
         condition: service_healthy
+    # alias เฉพาะให้ frontend เรียกได้ตรงตัว (กันชนชื่อ "backend" บนเน็ต lms ที่ frontend ต่ออยู่)
+    networks:
+      default:
+        aliases:
+          - sd-backend
     # Resource ceilings: the backend holds the whole sheet dataset + session maps
     # in memory; without limits an unbounded process could OOM-kill the host.
     mem_limit: 512m
