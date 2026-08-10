@@ -71,6 +71,13 @@ services:
     depends_on:
       backend:
         condition: service_healthy
+    # อยู่ทั้งเน็ต default (คุยกับ backend) และเน็ต lms ของ Caddy (lms-client) —
+    # ใช้ alias "sale-dashboard-frontend" ให้ Caddy dial เจอ (เสิร์ฟ /sales/)
+    networks:
+      default: {}
+      lms:
+        aliases:
+          - sale-dashboard-frontend
     restart: unless-stopped
     mem_limit: 128m
     cpus: 0.5
@@ -110,6 +117,12 @@ services:
       timeout: 3s
       retries: 5
       start_period: 5s
+
+networks:
+  # เน็ตเวิร์กภายนอกของ Caddy (lms-client) — reverse proxy ที่เสิร์ฟ bh.b-happiness.co.th/sales/
+  lms:
+    external: true
+    name: lms-system_lms-net
 
 volumes:
   xbloom-data:
