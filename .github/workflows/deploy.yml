@@ -50,8 +50,11 @@ jobs:
 
           PREV="$(git rev-parse HEAD)"
           echo "==> current: $PREV"
-          git fetch origin main
-          git reset --hard origin/main
+          # ดึงจาก HTTPS ตรง ๆ + เมิน git config global/system ของ VPS
+          # (กัน remote ที่เป็น SSH หรือ insteadOf ที่ rewrite https->ssh → Permission denied publickey)
+          GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_SYSTEM=/dev/null \
+            git fetch https://github.com/B0atByte/sale-dashboardXB.git main
+          git reset --hard FETCH_HEAD
           echo "==> deploying: $(git rev-parse HEAD)"
 
           docker compose build
