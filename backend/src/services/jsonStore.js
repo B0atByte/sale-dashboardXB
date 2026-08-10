@@ -35,6 +35,9 @@ function clone(value) {
 // เปิด DB เดียวใช้ร่วมกันทั้ง process
 fs.mkdirSync(DATA_DIR, { recursive: true });
 const db = new DatabaseSync(DB_FILE);
+// รอ lock ได้ถึง 5 วิ แทนที่จะโยน "database is locked" ทันที
+// (กันชนกันตอนหลาย process เปิด/สร้าง DB พร้อมกัน เช่น test runner ที่รันไฟล์ขนาน)
+db.exec('PRAGMA busy_timeout = 5000');
 db.exec('PRAGMA journal_mode = WAL');
 db.exec('PRAGMA foreign_keys = ON');
 db.exec('CREATE TABLE IF NOT EXISTS kv (name TEXT PRIMARY KEY, value TEXT NOT NULL, updated_at TEXT)');
