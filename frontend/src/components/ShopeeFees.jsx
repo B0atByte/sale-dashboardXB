@@ -1,7 +1,18 @@
 import { useEffect, useMemo, useState } from "react";
+import {
+  AreaChart,
+  Area,
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer,
+} from "recharts";
 import { useLang } from "../i18n";
 import { gmvOf } from "../utils/data";
-import { formatCurrency, formatShortDate } from "../utils/format";
+import { formatCurrency, formatCompact, formatShortDate } from "../utils/format";
 import { IconX, IconEye, IconChevronLeft, IconChevronRight } from "./Icons";
 
 const PAGE_SIZES = [10, 25, 50, 100, "all"];
@@ -33,6 +44,26 @@ export default function ShopeeFees({ records = [], title, subtitle, defaultSortK
       ),
     [records]
   );
+
+  // แนวโน้มรายรับสุทธิรายวัน (เรียงจากวันเก่าไปใหม่)
+  const netByDay = useMemo(() => {
+    const map = new Map();
+    for (const r of records) {
+      if (!r.date) continue;
+      map.set(r.date, (map.get(r.date) || 0) + (r.netRevenue || 0));
+    }
+    return [...map.entries()]
+      .map(([date, value]) => ({ key: date, value, label: formatShortDate(date, lang) }))
+      .sort((a, b) => a.key.localeCompare(b.key));
+  }, [records, lang]);
+
+  const netTooltip = ({ active, payload }) =>
+    active && payload && payload.length ? (
+      <div className="rounded-2xl border border-slate-100 bg-white px-4 py-3 shadow-lg">
+        <p className="text-xs font-bold text-slate-700">{payload[0].payload.label}</p>
+        <p className="mt-1 text-sm font-bold text-indigo-600">{formatCurrency(payload[0].payload.value)}</p>
+      </div>
+    ) : null;
 
   const cards = [
     { label: t("shopee.gmv"), value: formatCurrency(totals.gmv) },
@@ -102,6 +133,44 @@ export default function ShopeeFees({ records = [], title, subtitle, defaultSortK
             <p className={`mt-1 text-lg font-bold tracking-tight ${c.accent ? "text-white" : "text-slate-800"}`}>{c.value}</p>
           </div>
         ))}
+      </div>
+
+      {/* กราฟแนวโน้มรายรับสุทธิรายวัน (สไตล์เดียวกับกราฟแนวโน้มหน้าอื่น) */}
+      <div className="mt-6">
+        <h3 className="mb-2 text-[11px] font-black uppercase tracking-widest text-slate-400">
+          {t("shopee.netTrend")}
+        </h3>
+        {netByDay.length === 0 ? (
+          <p className="py-12 text-center text-sm text-slate-400">{t("trend.needMore")}</p>
+        ) : (
+          <div className="h-56 w-full">
+            <ResponsiveContainer width="100%" height="100%">
+              {netByDay.length === 1 ? (
+                <BarChart data={netByDay} margin={{ top: 8, right: 8, left: 8, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="4 4" stroke="#e2e8f0" vertical={false} />
+                  <XAxis dataKey="label" tick={{ fontSize: 11, fill: "#94a3b8" }} axisLine={false} tickLine={false} />
+                  <YAxis tickFormatter={formatCompact} tick={{ fontSize: 11, fill: "#94a3b8" }} axisLine={false} tickLine={false} width={44} />
+                  <Tooltip cursor={{ fill: "#eef2ff" }} content={netTooltip} />
+                  <Bar dataKey="value" fill="#4f46e5" radius={[8, 8, 0, 0]} maxBarSize={72} isAnimationActive={false} />
+                </BarChart>
+              ) : (
+                <AreaChart data={netByDay} margin={{ top: 8, right: 8, left: 8, bottom: 0 }}>
+                  <defs>
+                    <linearGradient id="netGrad" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="#4f46e5" stopOpacity={0.15} />
+                      <stop offset="100%" stopColor="#4f46e5" stopOpacity={0} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="4 4" stroke="#e2e8f0" vertical={false} />
+                  <XAxis dataKey="label" tick={{ fontSize: 11, fill: "#94a3b8" }} axisLine={false} tickLine={false} minTickGap={20} />
+                  <YAxis tickFormatter={formatCompact} tick={{ fontSize: 11, fill: "#94a3b8" }} axisLine={false} tickLine={false} width={44} />
+                  <Tooltip cursor={{ stroke: "#c7d2fe", strokeWidth: 1.5 }} content={netTooltip} />
+                  <Area type="monotone" dataKey="value" stroke="#4f46e5" strokeWidth={2} fill="url(#netGrad)" isAnimationActive={false} />
+                </AreaChart>
+              )}
+            </ResponsiveContainer>
+          </div>
+        )}
       </div>
 
       {/* แถบควบคุม: จำนวนแถว + ยอดรวมรายการ */}

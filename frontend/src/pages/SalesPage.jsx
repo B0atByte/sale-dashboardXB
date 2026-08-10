@@ -15,6 +15,7 @@ import DonutChart from "../components/DonutChart";
 import TrendChart from "../components/TrendChart";
 import TopProducts from "../components/TopProducts";
 import SalesTable from "../components/SalesTable";
+import ToggleGroup from "../components/ToggleGroup";
 import ErrorBanner from "../components/ErrorBanner";
 import LoadingSkeleton from "../components/LoadingSkeleton";
 import LoadingBadge from "../components/LoadingBadge";
@@ -58,6 +59,7 @@ export default function SalesPage({ onLogout, user }) {
   const [adminOpen, setAdminOpen] = useState(false);
   const [logOpen, setLogOpen] = useState(false);
   const [view, setView] = useState("dashboard"); // "dashboard" | "menu"
+  const [salesView, setSalesView] = useState("list"); // "list" (รายการขาย) | "fees" (ค่าธรรมเนียม & รายรับสุทธิ) — เฉพาะช่องทางออนไลน์
 
   const { records, summary, updatedAt, stale, loading, error, refresh } =
     useSalesData(filters, settings.refreshIntervalMs);
@@ -240,14 +242,33 @@ export default function SalesPage({ onLogout, user }) {
                   <TopProducts products={summary.topProducts} />
                 </div>
 
-                {/* แพลตฟอร์มออนไลน์: สรุปค่าธรรมเนียม/รายรับสุทธิ + รายเคส */}
-                {isOnlinePlatform && <ShopeeFees records={records} />}
-
-                <SalesTable
-                  records={records}
-                  filtersKey={filtersKey}
-                  hideColumns={isB2B ? ["platform", "campaign"] : []}
-                />
+                {/* ช่องทางออนไลน์: รวม "รายการขาย" กับ "ค่าธรรมเนียม & รายรับสุทธิ" ไว้ก้อนเดียว
+                    มีปุ่มสลับมุมมอง (เริ่มที่รายการขาย) — ช่องทางอื่นโชว์รายการขายอย่างเดียว */}
+                {isOnlinePlatform ? (
+                  <div className="space-y-4">
+                    <div className="flex justify-end">
+                      <ToggleGroup
+                        value={salesView}
+                        onChange={setSalesView}
+                        options={[
+                          { v: "list", label: t("table.title") },
+                          { v: "fees", label: t("shopee.title") },
+                        ]}
+                      />
+                    </div>
+                    {salesView === "fees" ? (
+                      <ShopeeFees records={records} />
+                    ) : (
+                      <SalesTable records={records} filtersKey={filtersKey} />
+                    )}
+                  </div>
+                ) : (
+                  <SalesTable
+                    records={records}
+                    filtersKey={filtersKey}
+                    hideColumns={isB2B ? ["platform", "campaign"] : []}
+                  />
+                )}
               </div>
             )
           )}

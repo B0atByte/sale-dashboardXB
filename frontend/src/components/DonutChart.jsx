@@ -33,41 +33,39 @@ export default function DonutChart({ title, subtitle, data: dataProp, records, b
 
   return (
     <section className="flex h-full flex-col rounded-[32px] border border-slate-100 bg-white p-6 shadow-sm">
-      {/* หัวการ์ด: ชื่อกับ toggle อยู่บรรทัดเดียวกัน (จัดกึ่งกลางแนวตั้งของหัวข้อ) — คำบรรยายลงไปอยู่ใต้หัวข้อ */}
+      {/* หัวการ์ด: ชื่อ + คำบรรยายก่อน แล้วค่อยเป็นแถบ toggle ด้านล่าง
+          (กันหัวข้อยาวโดนตัดบนการ์ดแคบ เช่น "สัดส่วนแคมเปญ" ในกริด 3 คอลัมน์) */}
       <div className="mb-4">
-        <div className="flex items-center justify-between gap-3">
-          <h2 className="min-w-0 truncate text-2xl font-bold tracking-tighter text-slate-800">
-            {title}
-          </h2>
-          {hasToggle && (
-            /* ml-auto: ชิดขวาเสมอ */
-            <div className="ml-auto flex shrink-0 items-center gap-1.5">
-              {showGranToggle && (
-                <ToggleGroup
-                  value={gran}
-                  onChange={setGran}
-                  options={[
-                    { v: "year", label: t("trend.year") },
-                    { v: "month", label: t("trend.month") },
-                    { v: "day", label: t("trend.day") },
-                  ]}
-                />
-              )}
-              <ToggleGroup
-                value={metric}
-                onChange={setMetric}
-                options={[
-                  { v: "gmv", label: `${t("trend.gmv")} (฿)` },
-                  { v: "units", label: unitLabel || `${t("trend.units")} (pcs)` },
-                ]}
-              />
-            </div>
-          )}
-        </div>
+        <h2 className="text-2xl font-bold tracking-tighter text-slate-800">
+          {title}
+        </h2>
         {subtitle && (
           <p className="mt-0.5 text-xs font-bold uppercase tracking-wider text-slate-400">
             {subtitle}
           </p>
+        )}
+        {hasToggle && (
+          <div className="mt-3 flex flex-wrap items-center gap-1.5">
+            {showGranToggle && (
+              <ToggleGroup
+                value={gran}
+                onChange={setGran}
+                options={[
+                  { v: "year", label: t("trend.year") },
+                  { v: "month", label: t("trend.month") },
+                  { v: "day", label: t("trend.day") },
+                ]}
+              />
+            )}
+            <ToggleGroup
+              value={metric}
+              onChange={setMetric}
+              options={[
+                { v: "gmv", label: `${t("trend.gmv")} (฿)` },
+                { v: "units", label: unitLabel || `${t("trend.units")} (pcs)` },
+              ]}
+            />
+          </div>
         )}
       </div>
 
