@@ -88,7 +88,7 @@ export default function Sidebar({ platforms = [], active = "", onSelect, onReord
       {/* แบรนด์ */}
       <div className="flex items-center gap-3 px-6 py-6">
         <img
-          src="/xbloom-logo.png"
+          src={`${import.meta.env.BASE_URL}xbloom-logo.png`}
           alt="xBloom logo"
           className="h-10 w-10 rounded-2xl shadow-lg shadow-slate-200"
         />

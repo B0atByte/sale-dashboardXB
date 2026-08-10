@@ -55,7 +55,11 @@ services:
       start_period: 10s
 
   frontend:
-    build: ./frontend
+    build:
+      context: ./frontend
+      # ตั้ง VITE_BASE=/sales/ ใน .env บน VPS เพื่อ build ให้เสิร์ฟใต้ /sales/ (local ไม่ตั้ง = ราก /)
+      args:
+        VITE_BASE: ${VITE_BASE:-/}
     ports:
       - "8081:80"
     # SECURITY: nginx only needs API_KEY (injected into the x-api-key header

@@ -9,6 +9,9 @@ RUN npm ci
 # คัดลอกซอร์สแล้ว build (ไม่มีคีย์ API เกี่ยวข้องในขั้นตอนนี้ —
 # bundle ที่ได้ไม่มีความลับใด ๆ ฝังอยู่)
 COPY . .
+# base path ของแอป (เช่น /sales/ ตอนเสิร์ฟใต้ subpath) — ค่าปริยาย = ราก /
+ARG VITE_BASE=/
+ENV VITE_BASE=$VITE_BASE
 RUN npm run build
 
 # ---------- Stage 2: serve ด้วย nginx ----------

@@ -9,6 +9,8 @@ export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), "");
 
   return {
+    // base path ของแอป — ตั้ง VITE_BASE=/sales/ ตอน build เพื่อเสิร์ฟใต้ /sales/ (ค่าปริยาย = ราก /)
+    base: process.env.VITE_BASE || "/",
     plugins: [react(), tailwindcss()],
     server: {
       proxy: {

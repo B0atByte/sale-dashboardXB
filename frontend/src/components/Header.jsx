@@ -17,7 +17,7 @@ export default function Header({ updatedAt, stale, loading, onRefresh, onLogout,
         {/* แบรนด์ (เฉพาะจอเล็ก — จอใหญ่แสดงใน Sidebar) */}
         <div className="flex items-center gap-3 lg:hidden">
           <img
-            src="/xbloom-logo.png"
+            src={`${import.meta.env.BASE_URL}xbloom-logo.png`}
             alt="xBloom logo"
             className="h-10 w-10 rounded-2xl shadow-lg shadow-slate-200"
           />

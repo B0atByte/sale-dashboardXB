@@ -17,7 +17,7 @@ function AuthGate() {
     return (
       <div className="flex min-h-screen items-center justify-center bg-slate-50">
         <img
-          src="/xbloom-logo.png"
+          src={`${import.meta.env.BASE_URL}xbloom-logo.png`}
           alt=""
           className="h-14 w-14 animate-pulse rounded-3xl"
         />

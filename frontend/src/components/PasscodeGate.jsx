@@ -36,7 +36,7 @@ export default function PasscodeGate({ onLogin }) {
         {/* โลโก้ + ชื่อแบรนด์ (กลาง) */}
         <div className="flex flex-col items-center text-center">
           <img
-            src="/xbloom-logo.png"
+            src={`${import.meta.env.BASE_URL}xbloom-logo.png`}
             alt="xBloom"
             className="h-14 w-14 rounded-2xl shadow-sm"
           />
