@@ -48,6 +48,9 @@ jobs:
           set -euo pipefail
           cd /data/apps/sale-dashboard
 
+          # เสิร์ฟใต้ /sales/ → build frontend ด้วย base=/sales/ (compose อ่าน ${VITE_BASE})
+          export VITE_BASE=/sales/
+
           PREV="$(git rev-parse HEAD)"
           echo "==> current: $PREV"
           # ดึงจาก HTTPS ตรง ๆ + เมิน git config global/system ของ VPS
