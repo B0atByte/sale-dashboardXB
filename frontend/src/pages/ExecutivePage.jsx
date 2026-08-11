@@ -36,6 +36,16 @@ const KPI_CARDS = [
   { key: "accessories", labelKey: "group.accessories", color: "#d97706" },
 ];
 
+const fieldCls =
+  "rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-bold text-slate-700 outline-none transition focus:border-indigo-400 focus:bg-white";
+
+/** ป้ายชื่อเดือนจาก key "2026-07" -> "ก.ค. 2569" / "Jul 2026" */
+function monthName(key, lang) {
+  const d = new Date(`${key}-01T00:00:00`);
+  if (Number.isNaN(d.getTime())) return key;
+  return d.toLocaleDateString(lang === "en" ? "en-GB" : "th-TH", { month: "short", year: "numeric" });
+}
+
 /**
  * Sidebar เฉพาะผู้บริหาร — โครงเดียวกับ Sidebar หน้าแดชบอร์ด แต่มีเมนูเดียว
  * (ไม่มีช่องทางขาย / มุมมองอื่น) เพื่อคงข้อจำกัดของ role executive
@@ -141,30 +151,43 @@ function ExecutiveDetails() {
  *   D. ปุ่ม "ดูรายละเอียดเพิ่มเติม" → ตัวกรอง + ตาราง (ซ่อนไว้ก่อน)
  */
 export default function ExecutivePage({ onLogout, user }) {
-  const { t } = useLang();
+  const { t, lang } = useLang();
   const { settings } = useSettings();
   // ดึงข้อมูลทั้งชุด (ไม่กรอง) มาทำ KPI + กราฟภาพรวม
   const { records, summary, updatedAt, stale, loading, error, refresh } =
     useSalesData(EMPTY_FILTERS);
   const [showDetails, setShowDetails] = useState(false);
+  const [month, setMonth] = useState(""); // "" = ทุกเดือน, ไม่งั้น "2026-07"
 
   // จำกัดตั้งแต่ มิ.ย. 2026 เป็นต้นมา
   const scoped = useMemo(
     () => records.filter((r) => String(r.date || "") >= START),
     [records]
   );
-  const salesTotals = useMemo(() => groupTotals(scoped, "gmv"), [scoped]);
-  const unitTotals = useMemo(() => groupTotals(scoped, "units"), [scoped]);
+  // เดือนที่มีข้อมูลจริง (ใหม่สุดอยู่บน) สำหรับดรอปดาวน์กรอง
+  const months = useMemo(() => {
+    const set = new Set(scoped.map((r) => String(r.date || "").slice(0, 7)).filter(Boolean));
+    return [...set].sort((a, b) => b.localeCompare(a));
+  }, [scoped]);
+
+  // KPI ยึดตามเดือนที่เลือก (ถ้าเลือก) — ถ้าไม่เลือก = ทั้งหมดตั้งแต่ มิ.ย.
+  const kpiRecords = useMemo(
+    () => (month ? scoped.filter((r) => String(r.date || "").slice(0, 7) === month) : scoped),
+    [scoped, month]
+  );
+  const salesTotals = useMemo(() => groupTotals(kpiRecords, "gmv"), [kpiRecords]);
+  const unitTotals = useMemo(() => groupTotals(kpiRecords, "units"), [kpiRecords]);
   // sparkline รายวันต่อกลุ่ม (total = ทั้งหมด)
   const sparks = useMemo(() => {
     const out = {};
     for (const c of KPI_CARDS) {
-      const recs = c.key === "total" ? scoped : scoped.filter((r) => categoryGroupOf(r) === c.key);
+      const recs = c.key === "total" ? kpiRecords : kpiRecords.filter((r) => categoryGroupOf(r) === c.key);
       out[c.key] = metricSpark(recs, "gmv");
     }
     return out;
-  }, [scoped]);
+  }, [kpiRecords]);
 
+  const periodLabel = month ? monthName(month, lang) : t("exec2.kpiSub");
   const isFirstLoad = loading && !summary;
 
   return (
@@ -182,12 +205,30 @@ export default function ExecutivePage({ onLogout, user }) {
         />
 
         <main className="mx-auto max-w-7xl space-y-6 px-4 pt-6 pb-16 sm:px-6">
-          {/* หัวเรื่อง */}
-          <div>
-            <h2 className="text-2xl font-bold tracking-tighter text-slate-800">{t("exec2.title")}</h2>
-            <p className="text-xs font-bold uppercase tracking-wider text-slate-400">
-              {t("exec2.sub")} · {t("exec2.kpiSub")}
-            </p>
+          {/* หัวเรื่อง + ตัวกรองเดือน (คุมเฉพาะการ์ด KPI — กราฟยังโชว์ทุกเดือน) */}
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <h2 className="text-2xl font-bold tracking-tighter text-slate-800">{t("exec2.title")}</h2>
+              <p className="text-xs font-bold uppercase tracking-wider text-slate-400">
+                {t("exec2.sub")} · {periodLabel}
+              </p>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">{t("trend.month")}</span>
+              <select
+                value={month}
+                onChange={(e) => setMonth(e.target.value)}
+                aria-label={t("trend.month")}
+                className={`${fieldCls} cursor-pointer`}
+              >
+                <option value="">{t("filter.all")}</option>
+                {months.map((m) => (
+                  <option key={m} value={m}>
+                    {monthName(m, lang)}
+                  </option>
+                ))}
+              </select>
+            </div>
           </div>
 
           {error && <ErrorBanner onRetry={refresh} />}
