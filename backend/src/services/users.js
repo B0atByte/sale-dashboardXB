@@ -9,8 +9,10 @@ import { createStore, DataStoreError } from './jsonStore.js';
 
 const store = createStore('users.json', null); // ไม่มีไฟล์ → null (กรณี seed ครั้งแรก)
 
-export const ROLES = ['itsupport', 'admin', 'viewer'];
-const ROLE_RANK = { viewer: 1, admin: 2, itsupport: 3 };
+export const ROLES = ['itsupport', 'admin', 'executive', 'viewer'];
+// executive = ผู้บริหาร: เห็นเฉพาะหน้า Executive Summary (rank เท่า viewer =1
+// จึงเข้า admin router ที่ต้องการ rank>=2 ไม่ได้)
+const ROLE_RANK = { viewer: 1, executive: 1, admin: 2, itsupport: 3 };
 
 /**
  * สิทธิ์เข้าถึงข้อมูลแบบเจาะจงต่อผู้ใช้ (นอกเหนือจาก role) — บังคับที่เซิร์ฟเวอร์

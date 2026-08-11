@@ -405,6 +405,54 @@ export function aggregateTrend(records = [], granularity = "day", metric = "gmv"
     .sort((a, b) => a.key.localeCompare(b.key));
 }
 
+// ---- จัดกลุ่มหมวดสินค้าเป็น 3 กลุ่มใหญ่ (Machine / Beans / Accessories) ----
+// ใช้ใน Executive Summary + กราฟ 4 เส้น (Total/Machine/Beans/Accessories)
+//   Machine     = xBloom Studio / ชื่อรุ่น-สีเครื่อง
+//   Beans       = Beans, xPack, xPod, Tea, Beverage (ดูจาก "หมวด" เป็นหลัก)
+//   Accessories = ที่เหลือ (Coffee Spoon, Filter, Kinto, Omni Tea Brewer, ฯลฯ)
+export function categoryGroupOf(r) {
+  const cat = String(r.category || "").trim().toLowerCase();
+  const name = String(r.productName || "").toLowerCase();
+  if (
+    cat.includes("xbloom studio") ||
+    name.includes("xbloom studio") ||
+    /midnight black|moonlight white|sage green|twilight/.test(`${cat} ${name}`)
+  ) {
+    return "machine";
+  }
+  // startsWith กับ "หมวด" เพื่อกันชนกับ accessories ที่ชื่อมีคำ tea (เช่น Omni Tea Brewer)
+  if (["beans", "xpack", "xpod", "tea", "beverage", "sachet"].some((k) => cat.startsWith(k))) {
+    return "beans";
+  }
+  return "accessories";
+}
+
+/** ยอดรวมตามกลุ่ม { total, machine, beans, accessories } — metric = "gmv" | "units" */
+export function groupTotals(records = [], metric = "gmv") {
+  const out = { total: 0, machine: 0, beans: 0, accessories: 0 };
+  for (const r of records) {
+    const v = metricOf(r, metric);
+    out.total += v;
+    out[categoryGroupOf(r)] += v;
+  }
+  return out;
+}
+
+/** ซีรีส์รายเดือน 4 เส้น [{ key, total, machine, beans, accessories }] เรียงตามเดือน */
+export function monthlyGroupTrend(records = [], metric = "gmv") {
+  const map = new Map();
+  for (const r of records) {
+    if (!r.date) continue;
+    const key = String(r.date).slice(0, 7);
+    const cur = map.get(key) || { key, total: 0, machine: 0, beans: 0, accessories: 0 };
+    const v = metricOf(r, metric);
+    cur.total += v;
+    cur[categoryGroupOf(r)] += v;
+    map.set(key, cur);
+  }
+  return [...map.values()].sort((a, b) => a.key.localeCompare(b.key));
+}
+
 /** ส่งออก records เป็น CSV (มี BOM, ครอบค่าที่มี comma/quote/ขึ้นบรรทัด) */
 export function exportSalesCsv(records = [], filename = "xbloom-sales", t = (k) => k) {
   if (!records.length) return;

@@ -10,7 +10,7 @@ import {
 } from "recharts";
 import { useLang } from "../i18n";
 import DonutChart from "./DonutChart";
-import SalesTable from "./SalesTable";
+import MultiTrendChart from "./MultiTrendChart";
 import ToggleGroup from "./ToggleGroup";
 import {
   isMachine,
@@ -265,6 +265,14 @@ export default function XBloomView() {
         </div>
       </section>
 
+      {/* แนวโน้มยอดขายรายเดือน 4 เส้น (รวม/เครื่อง/เมล็ด/อุปกรณ์เสริม) — ทั้งหน้าตามตัวกรอง */}
+      <MultiTrendChart
+        records={base}
+        metric="gmv"
+        title={t("xbloom.salesTrend")}
+        subtitle={t("xbloom.salesTrendSub")}
+      />
+
       {/* โดนัท 2 คอลัมน์: สัดส่วนเครื่องตามสี + ตามช่องทาง (เริ่มที่ "จำนวนเครื่อง" สลับ ฿ ได้) */}
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
         <DonutChart
@@ -300,13 +308,6 @@ export default function XBloomView() {
           <MonthlyBar data={beanByMonth} color="#059669" lang={lang} unit={t("xbloom.unitPcs")} />
         </section>
       </div>
-
-      {/* รายการขายเครื่อง (ล่างสุด) — ค้นหา/เรียง/แบ่งหน้า/ส่งออก CSV ได้ */}
-      <SalesTable
-        records={machines}
-        filtersKey={`${gran}|${anchor}|${channel}`}
-        hideColumns={["campaign"]}
-      />
     </div>
   );
 }

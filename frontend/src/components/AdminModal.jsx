@@ -681,6 +681,7 @@ export default function AdminModal({ open, user, platforms = [], onClose, onChan
               <input value={nu.pin} onChange={(e) => setNu((s) => ({ ...s, pin: e.target.value.replace(/\D/g, "").slice(0, 12) }))} type="password" inputMode="numeric" placeholder={t("admin.userPin")} className={`${field} w-28`} />
               <select value={nu.role} onChange={(e) => setNu((s) => ({ ...s, role: e.target.value }))} className={`${field} cursor-pointer`}>
                 <option value="viewer">{t("role.viewer")}</option>
+                <option value="executive">{t("role.executive")}</option>
                 <option value="admin">{t("role.admin")}</option>
                 {isIt && <option value="itsupport">{t("role.itsupport")}</option>}
               </select>
