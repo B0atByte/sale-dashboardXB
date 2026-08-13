@@ -8,9 +8,9 @@ import useSalesData from "../hooks/useSalesData";
 import { groupTotals, categoryGroupOf, metricSpark } from "../utils/data";
 import { formatCurrency, formatNumber } from "../utils/format";
 
-// ยอดขายจริงของ xBloom เริ่ม มิ.ย. 2026 (ก่อนหน้านั้นเป็นข้อมูล seed ทดสอบ 3 แถว/เดือน)
-// เริ่มสรุปที่ มิ.ย. 2026 → ตัวเลขตรงกับแดชบอร์ดหลัก + กราฟรายเดือนสะอาด ไม่มีเดือนศูนย์รก
-const START = "2026-06-01";
+// แสดง "ทุกช่วงเวลา" (2024 → ปัจจุบัน) — ก่อน มิ.ย. 2026 เป็นยอดสรุปรายเดือนย้อนหลังจริง
+// (แถว platform="Total" 3 หมวด/เดือน: xBloom Studio / Beans / Accessories) ไม่ใช่ข้อมูลทดสอบ
+// จึงไม่ตัดทิ้ง เพื่อให้ตัวเลขตรงกับแดชบอร์ดหลักและครบตามที่ผู้บริหารต้องการ
 
 // ตัวกรองว่าง — ใช้ดึงข้อมูล "ทั้งชุด" (ไม่กรอง) มาทำ KPI + กราฟภาพรวม
 export const EXEC_EMPTY_FILTERS = {
@@ -76,11 +76,8 @@ export function ExecutiveSummaryView({ records = [], loading = false, error = fa
   const { t, lang } = useLang();
   const [month, setMonth] = useState(""); // "" = ทุกเดือน, ไม่งั้น "2026-07"
 
-  // จำกัดตั้งแต่ มิ.ย. 2026 เป็นต้นมา
-  const scoped = useMemo(
-    () => records.filter((r) => String(r.date || "") >= START),
-    [records]
-  );
+  // ใช้ข้อมูลทั้งชุด (ไม่ตัดช่วงเริ่ม) — ครอบคลุม 2024 → ปัจจุบัน
+  const scoped = records;
   // เดือนที่มีข้อมูลจริง (ใหม่สุดอยู่บน) สำหรับดรอปดาวน์กรอง
   const months = useMemo(() => {
     const set = new Set(scoped.map((r) => String(r.date || "").slice(0, 7)).filter(Boolean));
@@ -104,7 +101,12 @@ export function ExecutiveSummaryView({ records = [], loading = false, error = fa
     return out;
   }, [kpiRecords]);
 
-  const periodLabel = month ? monthName(month, lang) : t("exec2.kpiSub");
+  // ป้ายช่วงเวลา: เลือกเดือน = เดือนนั้น, ไม่เลือก = ช่วงจริงทั้งหมด (เดือนแรก – เดือนล่าสุด)
+  const periodLabel = month
+    ? monthName(month, lang)
+    : months.length
+      ? `${monthName(months[months.length - 1], lang)} – ${monthName(months[0], lang)}`
+      : t("exec2.kpiSub");
   const isFirstLoad = loading && records.length === 0;
 
   return (
