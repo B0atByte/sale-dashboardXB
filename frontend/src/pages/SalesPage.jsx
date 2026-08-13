@@ -11,6 +11,7 @@ import KpiCards from "../components/KpiCards";
 import ExecutiveSummary from "../components/ExecutiveSummary";
 import BeansReport from "../components/BeansReport";
 import XBloomView from "../components/XBloomView";
+import ExecutiveSummaryPanel from "../components/ExecutiveSummaryView";
 import DonutChart from "../components/DonutChart";
 import TrendChart from "../components/TrendChart";
 import TopProducts from "../components/TopProducts";
@@ -151,6 +152,7 @@ export default function SalesPage({ onLogout, user }) {
         onChangeView={goView}
         locations={locations}
         showOverview={canOverview}
+        showExecutive={canOpenAdmin}
       />
 
       <div className="lg:pl-64">
@@ -173,6 +175,7 @@ export default function SalesPage({ onLogout, user }) {
               { v: "dashboard", label: t("nav.dashboard") },
               { v: "menu", label: t("nav.mainMenu") },
               { v: "xbloom", label: t("nav.xbloomView") },
+              ...(canOpenAdmin ? [{ v: "executive", label: t("nav.executive") }] : []),
             ].map((it) => {
               // "แดชบอร์ด" active เฉพาะตอน overview (ไม่ได้เลือกช่องทาง) → active ทีละปุ่มเดียว
               const on = it.v === "dashboard" ? view === "dashboard" && !filters.platform : view === it.v;
@@ -195,6 +198,8 @@ export default function SalesPage({ onLogout, user }) {
             <BeansReport />
           ) : view === "xbloom" ? (
             <XBloomView />
+          ) : view === "executive" ? (
+            <ExecutiveSummaryPanel />
           ) : (
           <>
           <div className="lg:hidden">

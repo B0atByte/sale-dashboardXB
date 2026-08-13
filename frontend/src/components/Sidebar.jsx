@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useLang } from "../i18n";
 import { useSettings } from "../settings";
 import { platformColor, ONLINE_LOCATION } from "../utils/data";
-import { IconActivity, IconGrid, IconCoffee, IconBuilding } from "./Icons";
+import { IconActivity, IconGrid, IconCoffee, IconBuilding, IconTrendUp } from "./Icons";
 import { APP_VERSION } from "../version";
 
 /**
@@ -13,7 +13,7 @@ import { APP_VERSION } from "../version";
  * เลือกเมนู = ตั้งค่าตัวกรอง platform ("ภาพรวม" = ค่าว่าง = ไม่กรองช่องทาง)
  * ลากช่องทางเพื่อจัดลำดับเองได้ (ผ่าน onReorder)
  */
-export default function Sidebar({ platforms = [], active = "", onSelect, onReorder, showLog, onOpenLog, view = "dashboard", onChangeView, locations = [], showOverview = true }) {
+export default function Sidebar({ platforms = [], active = "", onSelect, onReorder, showLog, onOpenLog, view = "dashboard", onChangeView, locations = [], showOverview = true, showExecutive = false }) {
   const { t } = useLang();
   const { settings } = useSettings();
   const [dragName, setDragName] = useState(null);
@@ -111,6 +111,7 @@ export default function Sidebar({ platforms = [], active = "", onSelect, onReord
               { v: "dashboard", label: t("nav.dashboard"), Icon: IconGrid },
               { v: "menu", label: t("nav.mainMenu"), Icon: IconCoffee },
               { v: "xbloom", label: t("nav.xbloomView"), Icon: IconBuilding },
+              ...(showExecutive ? [{ v: "executive", label: t("nav.executive"), Icon: IconTrendUp }] : []),
             ].map((it) => {
               // "แดชบอร์ด" = overview → active เฉพาะตอนอยู่ dashboard และไม่ได้เลือกช่องทาง
               // (ถ้าเลือกช่องทาง ให้ปุ่มช่องทางนั้น active แทน — ทั้ง sidebar active ทีละปุ่มเดียว)
