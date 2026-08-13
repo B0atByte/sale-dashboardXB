@@ -1,6 +1,7 @@
 name: Deploy
 
-# push เข้า main → test → deploy บน VPS (self-hosted runner) → แจ้ง Discord (บน runner ของ GitHub)
+# push เข้า main → test + deploy บน VPS (self-hosted runner ทั้งคู่ ไม่พึ่ง GitHub-hosted
+# ที่คิว/หมด Actions minutes ได้) → แจ้ง Discord (best-effort บน runner ของ GitHub)
 on:
   push:
     branches: [main]
@@ -13,7 +14,9 @@ concurrency:
 jobs:
   test:
     name: Test & build
-    runs-on: ubuntu-latest
+    # รันบน self-hosted (VPS) เอง — ไม่พึ่ง GitHub-hosted runner ที่อาจคิว/หมด minutes
+    # (deploy job needs: test จึงเป็น gate ที่ยังทำงาน แต่ไม่ติด GitHub-hosted อีก)
+    runs-on: self-hosted
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
