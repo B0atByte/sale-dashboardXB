@@ -42,9 +42,13 @@ export function canSeeOverview(access) {
   return !access || access.overview !== false;
 }
 
+// มุมมองเสริมที่จำกัดสิทธิ์ได้ (นอกจาก dashboard/overview) — เก็บเป็น allow-list ใน access.views
+export const VIEW_KEYS = ['menu', 'xbloom', 'executive'];
+
 /**
- * ตรวจ/normalize access ที่รับมาจากผู้ใช้ → คืน object ที่ปลอดภัย หรือ null (= ไม่จำกัด เห็นทุกช่องทาง)
- * รูปแบบ: { overview?: boolean, allow?: string[], deny?: string[] }
+ * ตรวจ/normalize access ที่รับมาจากผู้ใช้ → คืน object ที่ปลอดภัย หรือ null (= ไม่จำกัด เห็นทุกอย่าง)
+ * รูปแบบ: { overview?: boolean, allow?: string[], deny?: string[], views?: string[] }
+ * - views (ถ้ามี) = รายการมุมมองเสริมที่เห็นได้ (subset ของ VIEW_KEYS); ไม่ส่ง = ใช้ค่าเริ่มต้นตาม role
  */
 export function sanitizeAccess(a) {
   if (!a || typeof a !== 'object') return null;
@@ -55,11 +59,16 @@ export function sanitizeAccess(a) {
   const allow = norm(a.allow);
   const deny = norm(a.deny);
   const overview = a.overview !== false; // ค่าเริ่มต้น = เห็นภาพรวมได้
-  // ไม่จำกัดช่องทาง และเห็นภาพรวม → ไม่ต้องมี access เลย (เห็นทุกอย่าง)
-  if (!allow.length && !deny.length && overview) return null;
+  const hasViews = Array.isArray(a.views);
+  const views = hasViews
+    ? [...new Set(a.views.map((v) => String(v || '').trim()).filter((v) => VIEW_KEYS.includes(v)))]
+    : null;
+  // ไม่จำกัดช่องทาง เห็นภาพรวม และไม่ได้ตั้งมุมมอง → ไม่ต้องมี access เลย (เห็นทุกอย่าง)
+  if (!allow.length && !deny.length && overview && !hasViews) return null;
   const out = { overview };
   if (allow.length) out.allow = allow;
   if (deny.length) out.deny = deny;
+  if (hasViews) out.views = views;
   return out;
 }
 

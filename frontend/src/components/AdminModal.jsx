@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useLang } from "../i18n";
 import { useSettings } from "../settings";
 import { IconX, IconSettings, IconDocument, IconCoffee } from "./Icons";
+import { OPTIONAL_VIEWS } from "../utils/access";
 
 /**
  * เอกสารแหล่งข้อมูล (หน้า Document) — อธิบายว่าแดชบอร์ดอ่านคอลัมน์ไหนของชีตไหน (ตัวอักษรคอลัมน์จริง)
@@ -93,11 +94,6 @@ export default function AdminModal({ open, user, platforms = [], onClose, onChan
   const [pinDraft, setPinDraft] = useState("");
   const [pinBusy, setPinBusy] = useState(false);
 
-  // เป้ายอดขาย
-  const [tg, setTg] = useState({ month: "", amount: "" });
-  const [tgStatus, setTgStatus] = useState(null);
-  const [tgBusy, setTgBusy] = useState(false);
-
   const loadUsers = useCallback(() => {
     fetch("/api/admin/users", { credentials: "same-origin" })
       .then((r) => r.json())
@@ -110,7 +106,6 @@ export default function AdminModal({ open, user, platforms = [], onClose, onChan
     setTab("general");
     setStatus(null);
     setUStatus(null);
-    setTgStatus(null);
     setGenStatus(null);
     setExtraStatus(null);
     if (user?.role === "itsupport") {
@@ -222,29 +217,6 @@ export default function AdminModal({ open, user, platforms = [], onClose, onChan
     }
   };
 
-  const saveTarget = async () => {
-    setTgBusy(true);
-    setTgStatus(null);
-    try {
-      const res = await fetch("/api/admin/targets", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        credentials: "same-origin",
-        body: JSON.stringify({ month: tg.month, amount: Number(tg.amount) }),
-      });
-      if (res.ok) {
-        setTgStatus({ type: "success", msg: t("admin.targetSaved") });
-        onChanged?.();
-      } else {
-        setTgStatus({ type: "error", msg: t("admin.errFetch") });
-      }
-    } catch {
-      setTgStatus({ type: "error", msg: t("admin.errFetch") });
-    } finally {
-      setTgBusy(false);
-    }
-  };
-
   const addUser = async () => {
     setUBusy(true);
     setUStatus(null);
@@ -288,23 +260,34 @@ export default function AdminModal({ open, user, platforms = [], onClose, onChan
   };
 
   // ---------- แก้สิทธิ์เข้าถึงข้อมูลรายคน ----------
-  const accessSummary = (a) => {
-    if (!a) return t("access.all");
-    if (a.allow?.length) return `${t("access.only")}: ${a.allow.join(", ")}`;
-    if (a.deny?.length) return `${t("access.except")}: ${a.deny.join(", ")}`;
-    return a.overview === false ? t("access.noOverview") : t("access.all");
+  const accessSummary = (u) => {
+    const a = u.access;
+    if (a?.allow?.length) return `${t("access.only")}: ${a.allow.join(", ")}`;
+    if (a?.deny?.length) return `${t("access.except")}: ${a.deny.join(", ")}`;
+    if (a && a.overview === false) return t("access.noOverview");
+    if (a && Array.isArray(a.views)) return t("access.customViews");
+    return t("access.all");
+  };
+  // ค่าเริ่มต้นของ "มุมมอง" ตาม role (เมื่อยังไม่เคยตั้ง access.views)
+  const defaultViewSet = (role) => {
+    const s = new Set(["menu", "xbloom"]);
+    if (["admin", "itsupport"].includes(role)) s.add("executive");
+    return s;
   };
   const openAccess = (u) => {
     const a = u.access;
-    let mode = "all";
-    let plats = [];
-    let overview = true;
-    if (a) {
-      overview = a.overview !== false;
-      if (a.allow?.length) { mode = "allow"; plats = a.allow; }
-      else if (a.deny?.length) { mode = "deny"; plats = a.deny; }
-    }
-    setAccessDraft({ mode, platforms: plats, overview });
+    const overview = a ? a.overview !== false : true;
+    const vset = a && Array.isArray(a.views) ? new Set(a.views) : defaultViewSet(u.role);
+    // ช่องทางที่ "เห็น" (ติ๊ก): allow→เฉพาะในลิสต์, deny→ทุกอันยกเว้น deny, ไม่มี→ทุกอัน
+    let channels;
+    if (a?.allow?.length) channels = platforms.filter((p) => a.allow.includes(p));
+    else if (a?.deny?.length) channels = platforms.filter((p) => !a.deny.includes(p));
+    else channels = [...platforms];
+    setAccessDraft({
+      overview,
+      views: { menu: vset.has("menu"), xbloom: vset.has("xbloom"), executive: vset.has("executive") },
+      channels,
+    });
     setPinFor(null);
     setAccessFor(accessFor === u.username ? null : u.username);
   };
@@ -338,20 +321,27 @@ export default function AdminModal({ open, user, platforms = [], onClose, onChan
       setPinBusy(false);
     }
   };
-  const togglePlat = (p) =>
+  const toggleChannel = (p) =>
     setAccessDraft((d) => ({
       ...d,
-      platforms: d.platforms.includes(p) ? d.platforms.filter((x) => x !== p) : [...d.platforms, p],
+      channels: d.channels.includes(p) ? d.channels.filter((x) => x !== p) : [...d.channels, p],
     }));
+  const toggleView = (v) =>
+    setAccessDraft((d) => ({ ...d, views: { ...d.views, [v]: !d.views[v] } }));
   const saveAccess = async () => {
     if (!accessDraft) return;
     setAccessBusy(true);
     setUStatus(null);
     const d = accessDraft;
-    let access;
-    if (d.mode === "allow") access = { overview: d.overview, allow: d.platforms };
-    else if (d.mode === "deny") access = { overview: d.overview, deny: d.platforms };
-    else access = { overview: d.overview };
+    // ช่องทาง: deny = ช่องที่ "ไม่ติ๊ก" (blacklist) — ติ๊กครบ = ไม่จำกัด, ไม่ติ๊กเลย = เห็นไม่ได้เลย
+    const deny = platforms.filter((p) => !d.channels.includes(p));
+    const views = OPTIONAL_VIEWS.filter((v) => d.views[v]);
+    // เก็บ views เฉพาะเมื่อ "ต่างจากค่าเริ่มต้นของ role" (ไม่งั้นปล่อยเป็นค่าเริ่มต้น = ไม่รก)
+    const defViews = defaultViewSet(users.find((x) => x.username === accessFor)?.role);
+    const viewsIsDefault = OPTIONAL_VIEWS.every((v) => d.views[v] === defViews.has(v));
+    const access = { overview: d.overview };
+    if (deny.length) access.deny = deny;
+    if (!viewsIsDefault) access.views = views;
     try {
       const res = await fetch(`/api/admin/users/${encodeURIComponent(accessFor)}/access`, {
         method: "POST",
@@ -378,27 +368,30 @@ export default function AdminModal({ open, user, platforms = [], onClose, onChan
   const label = "mb-1 block text-[10px] font-black uppercase tracking-widest text-slate-400";
   const heading = "mb-3 text-[11px] font-black uppercase tracking-widest text-slate-400";
   const saveBtn = "rounded-xl bg-slate-800 px-5 py-2.5 text-xs font-black uppercase tracking-widest text-white transition hover:bg-slate-900 active:scale-95 disabled:opacity-40";
+  const card = "rounded-2xl border border-slate-100 bg-white p-5 shadow-sm";
   const canAddUser = nu.username.trim().length >= 2 && nu.pin.length >= 4 && !uBusy;
 
   const TABS = [
     { k: "general", label: t("settings.tabGeneral") },
     ...(isIt ? [{ k: "source", label: t("settings.tabSource") }] : []),
-    { k: "targets", label: t("settings.tabTargets") },
     { k: "users", label: t("settings.tabUsers") },
     { k: "document", label: t("settings.tabDocument") },
   ];
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4" onClick={onClose}>
-      <div className="thin-scrollbar max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-[32px] bg-white p-8 shadow-2xl" onClick={(e) => e.stopPropagation()}>
-        <div className="mb-4 flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-slate-800 text-white">
+      <div className="thin-scrollbar max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-[32px] bg-white p-6 shadow-2xl sm:p-8" onClick={(e) => e.stopPropagation()}>
+        <div className="mb-5 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-slate-800 text-white shadow-lg shadow-slate-200">
               <IconSettings className="h-5 w-5" />
             </span>
-            <h2 className="text-xl font-bold tracking-tight text-slate-800">{t("admin.title")}</h2>
+            <div>
+              <h2 className="text-xl font-bold tracking-tight text-slate-800">{t("admin.title")}</h2>
+              <p className="text-[11px] font-bold text-slate-400">{t("admin.subtitle")}</p>
+            </div>
           </div>
-          <button onClick={onClose} className="rounded-lg p-1 text-slate-400 transition hover:bg-slate-100">
+          <button onClick={onClose} className="rounded-xl p-2 text-slate-400 transition hover:bg-slate-100 hover:text-slate-600">
             <IconX className="h-5 w-5" />
           </button>
         </div>
@@ -410,7 +403,7 @@ export default function AdminModal({ open, user, platforms = [], onClose, onChan
               key={x.k}
               type="button"
               onClick={() => setTab(x.k)}
-              className={`flex-1 whitespace-nowrap rounded-xl px-3 py-2 text-[11px] font-black uppercase tracking-wider transition ${
+              className={`flex-1 whitespace-nowrap rounded-xl px-3 py-2.5 text-[11px] font-black uppercase tracking-wider transition ${
                 tab === x.k ? "bg-white text-indigo-600 shadow-sm" : "text-slate-400 hover:text-slate-600"
               }`}
             >
@@ -421,8 +414,8 @@ export default function AdminModal({ open, user, platforms = [], onClose, onChan
 
         {/* ===== ทั่วไป ===== */}
         {tab === "general" && (
-          <div className="space-y-6">
-            <div>
+          <div className="space-y-4">
+            <div className={card}>
               <h3 className={heading}>{t("settings.brand")}</h3>
               <label className={label}>{t("settings.title")}</label>
               <input value={gen.brandTitle} onChange={(e) => setGen((s) => ({ ...s, brandTitle: e.target.value }))} className={`${field} w-full`} />
@@ -430,7 +423,7 @@ export default function AdminModal({ open, user, platforms = [], onClose, onChan
               <input value={gen.brandFooter} onChange={(e) => setGen((s) => ({ ...s, brandFooter: e.target.value }))} className={`${field} w-full`} />
             </div>
 
-            <div>
+            <div className={card}>
               <h3 className={heading}>{t("settings.perf")}</h3>
               <div className="flex gap-3">
                 <div className="flex-1">
@@ -444,9 +437,9 @@ export default function AdminModal({ open, user, platforms = [], onClose, onChan
               </div>
             </div>
 
-            <div>
+            <div className={card}>
               <h3 className={heading}>{t("settings.gmv")}</h3>
-              <div className="flex gap-2">
+              <div className="flex flex-wrap gap-2">
                 {[{ v: "lineTotal", l: t("settings.gmvLine") }, { v: "netRevenue", l: t("settings.gmvNet") }, { v: "vtecPrice", l: t("settings.gmvVtec") }].map((o) => (
                   <button
                     key={o.v}
@@ -548,35 +541,23 @@ export default function AdminModal({ open, user, platforms = [], onClose, onChan
           </div>
         )}
 
-        {/* ===== เป้ายอดขาย ===== */}
-        {tab === "targets" && (
-          <div>
-            <div className="flex flex-wrap items-center gap-2">
-              <input type="month" value={tg.month} onChange={(e) => setTg((s) => ({ ...s, month: e.target.value }))} className={field} />
-              <input type="number" min="0" step="10000" value={tg.amount} onChange={(e) => setTg((s) => ({ ...s, amount: e.target.value }))} placeholder={t("admin.targetAmount")} className={`${field} min-w-32 flex-1`} />
-              <button onClick={saveTarget} disabled={tgBusy || !tg.month || !tg.amount} className={saveBtn}>
-                {t("admin.save")}
-              </button>
-            </div>
-            {tgStatus && (
-              <p className={`mt-2 text-xs font-bold ${tgStatus.type === "success" ? "text-emerald-600" : "text-rose-500"}`}>{tgStatus.msg}</p>
-            )}
-          </div>
-        )}
-
         {/* ===== ผู้ใช้ ===== */}
         {tab === "users" && (
           <div>
+            <div className="mb-3 flex items-center justify-between">
+              <h3 className="text-[11px] font-black uppercase tracking-widest text-slate-400">{t("admin.usersSection")}</h3>
+              <span className="rounded-full bg-slate-100 px-2.5 py-0.5 text-[10px] font-black text-slate-500">{users.length}</span>
+            </div>
             <div className="space-y-2">
               {users.map((u) => (
-                <div key={u.username} className="rounded-2xl bg-slate-50">
+                <div key={u.username} className="rounded-2xl border border-slate-100 bg-slate-50/70">
                   <div className="flex items-center justify-between px-3 py-2.5">
                     <div className="flex min-w-0 items-center gap-2.5">
                       <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-slate-800 text-[11px] font-black uppercase text-white">{u.username.slice(0, 1)}</span>
                       <div className="min-w-0 leading-tight">
                         <p className="text-xs font-bold text-slate-700">{u.username}</p>
                         <p className="truncate text-[9px] font-black uppercase tracking-wider text-indigo-500">
-                          {t(`role.${u.role}`)} · <span className="normal-case text-slate-400">{accessSummary(u.access)}</span>
+                          {t(`role.${u.role}`)} · <span className="normal-case text-slate-400">{accessSummary(u)}</span>
                         </p>
                       </div>
                     </div>
@@ -617,52 +598,64 @@ export default function AdminModal({ open, user, platforms = [], onClose, onChan
                   )}
 
                   {accessFor === u.username && accessDraft && (
-                    <div className="space-y-3 border-t border-slate-100 px-3 py-3">
-                      <label className="flex items-center gap-2 text-xs font-bold text-slate-600">
-                        <input type="checkbox" checked={accessDraft.overview} onChange={(e) => setAccessDraft((d) => ({ ...d, overview: e.target.checked }))} />
-                        {t("access.overview")}
-                      </label>
-                      <div className="flex flex-wrap gap-1.5">
-                        {[
-                          { v: "all", l: t("access.all") },
-                          { v: "allow", l: t("access.modeAllow") },
-                          { v: "deny", l: t("access.modeDeny") },
-                        ].map((m) => (
-                          <button
-                            key={m.v}
-                            type="button"
-                            onClick={() => setAccessDraft((d) => ({ ...d, mode: m.v }))}
-                            className={`rounded-lg px-2.5 py-1.5 text-[11px] font-bold transition ${
-                              accessDraft.mode === m.v ? "bg-slate-800 text-white" : "border border-slate-200 bg-white text-slate-500"
-                            }`}
-                          >
-                            {m.l}
-                          </button>
-                        ))}
-                      </div>
-                      {accessDraft.mode !== "all" && (
-                        <div className="flex flex-wrap gap-1.5">
-                          {platforms.length === 0 ? (
-                            <span className="text-[11px] text-slate-400">{t("access.noPlatforms")}</span>
-                          ) : (
-                            platforms.map((p) => {
-                              const on = accessDraft.platforms.includes(p);
-                              return (
-                                <button
-                                  key={p}
-                                  type="button"
-                                  onClick={() => togglePlat(p)}
-                                  className={`rounded-lg px-2 py-1 text-[11px] font-medium transition ${
-                                    on ? "bg-indigo-600 text-white" : "border border-slate-200 bg-white text-slate-500"
-                                  }`}
-                                >
-                                  {p}
-                                </button>
-                              );
-                            })
-                          )}
+                    <div className="space-y-4 border-t border-slate-100 px-3 py-3">
+                      {/* มุมมองที่เห็น (ติ๊ก = เห็นได้) */}
+                      <div>
+                        <p className="mb-2 text-[10px] font-black uppercase tracking-widest text-slate-400">
+                          {t("access.viewsSection")}
+                        </p>
+                        <div className="grid grid-cols-2 gap-1.5">
+                          <label className="flex items-center gap-2 rounded-lg bg-slate-50 px-2.5 py-2 text-[11px] font-bold text-slate-600">
+                            <input
+                              type="checkbox"
+                              checked={accessDraft.overview}
+                              onChange={(e) => setAccessDraft((d) => ({ ...d, overview: e.target.checked }))}
+                              className="h-3.5 w-3.5 accent-indigo-600"
+                            />
+                            <span className="truncate">{t("nav.overview")}</span>
+                          </label>
+                          {[
+                            { v: "menu", l: t("nav.mainMenu") },
+                            { v: "xbloom", l: t("nav.xbloomView") },
+                            { v: "executive", l: t("exec2.title") },
+                          ].map((it) => (
+                            <label key={it.v} className="flex items-center gap-2 rounded-lg bg-slate-50 px-2.5 py-2 text-[11px] font-bold text-slate-600">
+                              <input
+                                type="checkbox"
+                                checked={accessDraft.views[it.v]}
+                                onChange={() => toggleView(it.v)}
+                                className="h-3.5 w-3.5 accent-indigo-600"
+                              />
+                              <span className="truncate">{it.l}</span>
+                            </label>
+                          ))}
                         </div>
-                      )}
+                      </div>
+
+                      {/* ช่องทางที่เห็น (ติ๊ก = เห็นได้; ติ๊กครบ = เห็นทุกช่องทาง) */}
+                      <div>
+                        <p className="mb-2 text-[10px] font-black uppercase tracking-widest text-slate-400">
+                          {t("access.channelsSection")}
+                        </p>
+                        {platforms.length === 0 ? (
+                          <span className="text-[11px] text-slate-400">{t("access.noPlatforms")}</span>
+                        ) : (
+                          <div className="grid grid-cols-2 gap-1.5">
+                            {platforms.map((p) => (
+                              <label key={p} className="flex items-center gap-2 rounded-lg bg-slate-50 px-2.5 py-2 text-[11px] font-medium text-slate-600">
+                                <input
+                                  type="checkbox"
+                                  checked={accessDraft.channels.includes(p)}
+                                  onChange={() => toggleChannel(p)}
+                                  className="h-3.5 w-3.5 accent-indigo-600"
+                                />
+                                <span className="truncate">{p}</span>
+                              </label>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+
                       <div className="flex justify-end gap-2">
                         <button onClick={() => setAccessFor(null)} className="rounded-lg px-3 py-1.5 text-[11px] font-bold text-slate-500 transition hover:bg-slate-100">
                           {t("access.cancel")}
@@ -676,18 +669,50 @@ export default function AdminModal({ open, user, platforms = [], onClose, onChan
                 </div>
               ))}
             </div>
-            <div className="mt-3 flex flex-wrap items-center gap-2 rounded-2xl border border-dashed border-slate-200 p-3">
-              <input value={nu.username} onChange={(e) => setNu((s) => ({ ...s, username: e.target.value }))} placeholder={t("login.username")} className={`${field} min-w-28 flex-1`} />
-              <input value={nu.pin} onChange={(e) => setNu((s) => ({ ...s, pin: e.target.value.replace(/\D/g, "").slice(0, 12) }))} type="password" inputMode="numeric" placeholder={t("admin.userPin")} className={`${field} w-28`} />
-              <select value={nu.role} onChange={(e) => setNu((s) => ({ ...s, role: e.target.value }))} className={`${field} cursor-pointer`}>
-                <option value="viewer">{t("role.viewer")}</option>
-                <option value="executive">{t("role.executive")}</option>
-                <option value="admin">{t("role.admin")}</option>
-                {isIt && <option value="itsupport">{t("role.itsupport")}</option>}
-              </select>
-              <button onClick={addUser} disabled={!canAddUser} className="rounded-xl bg-indigo-600 px-4 py-2.5 text-xs font-black uppercase tracking-wider text-white transition hover:bg-indigo-700 active:scale-95 disabled:opacity-40">
-                {t("admin.addUser")}
-              </button>
+            <div className="mt-4 rounded-2xl border border-dashed border-slate-200 p-4">
+              <p className="mb-3 text-[10px] font-black uppercase tracking-widest text-slate-400">{t("admin.addUser")}</p>
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <div>
+                  <label className={label}>{t("login.username")}</label>
+                  <input
+                    value={nu.username}
+                    onChange={(e) => setNu((s) => ({ ...s, username: e.target.value }))}
+                    placeholder={t("login.username")}
+                    className={`${field} w-full`}
+                  />
+                </div>
+                <div>
+                  <label className={label}>{t("admin.userPin")}</label>
+                  <input
+                    value={nu.pin}
+                    onChange={(e) => setNu((s) => ({ ...s, pin: e.target.value.replace(/\D/g, "").slice(0, 12) }))}
+                    type="password"
+                    inputMode="numeric"
+                    autoComplete="new-password"
+                    placeholder={t("admin.newPinHint")}
+                    className={`${field} w-full`}
+                  />
+                </div>
+              </div>
+              <div className="mt-3">
+                <label className={label}>{t("admin.userRole")}</label>
+                <select
+                  value={nu.role}
+                  onChange={(e) => setNu((s) => ({ ...s, role: e.target.value }))}
+                  className={`${field} w-full cursor-pointer`}
+                >
+                  <option value="viewer">{t("role.viewer")}</option>
+                  <option value="executive">{t("role.executive")}</option>
+                  <option value="admin">{t("role.admin")}</option>
+                  {isIt && <option value="itsupport">{t("role.itsupport")}</option>}
+                </select>
+              </div>
+              <p className="mt-2 text-[10px] font-bold text-slate-400">{t("admin.addUserHint")}</p>
+              <div className="mt-3 flex justify-end">
+                <button onClick={addUser} disabled={!canAddUser} className={saveBtn}>
+                  {uBusy ? t("admin.savingUser") : t("admin.addUser")}
+                </button>
+              </div>
             </div>
             {uStatus && (
               <p className={`mt-2 text-xs font-bold ${uStatus.type === "success" ? "text-emerald-600" : "text-rose-500"}`}>{uStatus.msg}</p>

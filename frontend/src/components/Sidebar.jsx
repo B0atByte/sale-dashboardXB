@@ -13,7 +13,9 @@ import { APP_VERSION } from "../version";
  * เลือกเมนู = ตั้งค่าตัวกรอง platform ("ภาพรวม" = ค่าว่าง = ไม่กรองช่องทาง)
  * ลากช่องทางเพื่อจัดลำดับเองได้ (ผ่าน onReorder)
  */
-export default function Sidebar({ platforms = [], active = "", onSelect, onReorder, showLog, onOpenLog, view = "dashboard", onChangeView, locations = [], showOverview = true, showExecutive = false }) {
+export default function Sidebar({ platforms = [], active = "", onSelect, onReorder, showLog, onOpenLog, view = "dashboard", onChangeView, locations = [], showOverview = true, views }) {
+  // มุมมองเสริมที่เห็นได้ (Set) — ไม่ส่งมา = เห็นครบ (กันพลาด), dashboard เห็นได้เสมอ
+  const viewSet = views instanceof Set ? views : new Set(["menu", "xbloom", "executive"]);
   const { t } = useLang();
   const { settings } = useSettings();
   const [dragName, setDragName] = useState(null);
@@ -111,8 +113,8 @@ export default function Sidebar({ platforms = [], active = "", onSelect, onReord
               { v: "dashboard", label: t("nav.dashboard"), Icon: IconGrid },
               { v: "menu", label: t("nav.mainMenu"), Icon: IconCoffee },
               { v: "xbloom", label: t("nav.xbloomView"), Icon: IconBuilding },
-              ...(showExecutive ? [{ v: "executive", label: t("nav.executive"), Icon: IconTrendUp }] : []),
-            ].map((it) => {
+              { v: "executive", label: t("nav.executive"), Icon: IconTrendUp },
+            ].filter((it) => it.v === "dashboard" || viewSet.has(it.v)).map((it) => {
               // "แดชบอร์ด" = overview → active เฉพาะตอนอยู่ dashboard และไม่ได้เลือกช่องทาง
               // (ถ้าเลือกช่องทาง ให้ปุ่มช่องทางนั้น active แทน — ทั้ง sidebar active ทีละปุ่มเดียว)
               const on = it.v === "dashboard" ? view === "dashboard" && !active : view === it.v;

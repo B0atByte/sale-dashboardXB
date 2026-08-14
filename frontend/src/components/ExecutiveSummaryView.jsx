@@ -34,11 +34,11 @@ const KPI_CARDS = [
 const fieldCls =
   "rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-bold text-slate-700 outline-none transition focus:border-indigo-400 focus:bg-white";
 
-/** ป้ายชื่อเดือนจาก key "2026-07" -> "ก.ค. 2569" / "Jul 2026" */
-function monthName(key, lang) {
+/** ชื่อเดือนแบบสั้นไม่มีปี "2026-07" -> "ก.ค." / "Jul" (ใช้คู่กับดรอปดาวน์ปี) */
+function monthShortName(key, lang) {
   const d = new Date(`${key}-01T00:00:00`);
   if (Number.isNaN(d.getTime())) return key;
-  return d.toLocaleDateString(lang === "en" ? "en-GB" : "th-TH", { month: "short", year: "numeric" });
+  return d.toLocaleDateString(lang === "en" ? "en-GB" : "th-TH", { month: "short" });
 }
 
 /** การ์ด KPI เดียว — สไตล์เดียวกับ KpiCards หน้าแดชบอร์ด (sparkline + เลขใหญ่ tabular) */
@@ -74,21 +74,37 @@ function KpiCard({ card, gmv, units, spark, t }) {
  */
 export function ExecutiveSummaryView({ records = [], loading = false, error = false, refresh }) {
   const { t, lang } = useLang();
-  const [month, setMonth] = useState(""); // "" = ทุกเดือน, ไม่งั้น "2026-07"
+  const [year, setYear] = useState("");   // "" = ทุกปี, ไม่งั้น "2025"
+  const [month, setMonth] = useState(""); // "" = ทุกเดือน, ไม่งั้น "2025-07"
 
-  // ใช้ข้อมูลทั้งชุด (ไม่ตัดช่วงเริ่ม) — ครอบคลุม 2024 → ปัจจุบัน
-  const scoped = records;
-  // เดือนที่มีข้อมูลจริง (ใหม่สุดอยู่บน) สำหรับดรอปดาวน์กรอง
-  const months = useMemo(() => {
-    const set = new Set(scoped.map((r) => String(r.date || "").slice(0, 7)).filter(Boolean));
+  // เห็นเฉพาะข้อมูลตั้งแต่ปี 2024 เป็นต้นมา (ตัดแถวไม่มีวันที่ / ก่อน 2024 ทิ้ง)
+  const scoped = useMemo(
+    () => records.filter((r) => String(r.date || "") >= "2024-01-01"),
+    [records]
+  );
+  // ปีที่มีข้อมูลจริง (ใหม่สุดอยู่บน)
+  const years = useMemo(() => {
+    const set = new Set(scoped.map((r) => String(r.date || "").slice(0, 4)).filter(Boolean));
     return [...set].sort((a, b) => b.localeCompare(a));
   }, [scoped]);
+  // เดือนของปีที่เลือก (ใหม่สุดอยู่บน) — โชว์เฉพาะเมื่อเลือกปีแล้ว
+  const monthsOfYear = useMemo(() => {
+    if (!year) return [];
+    const set = new Set(
+      scoped
+        .filter((r) => String(r.date || "").slice(0, 4) === year)
+        .map((r) => String(r.date || "").slice(0, 7))
+        .filter(Boolean)
+    );
+    return [...set].sort((a, b) => b.localeCompare(a));
+  }, [scoped, year]);
 
-  // KPI ยึดตามเดือนที่เลือก (ถ้าเลือก) — ถ้าไม่เลือก = ทั้งหมดตั้งแต่ มิ.ย.
-  const kpiRecords = useMemo(
-    () => (month ? scoped.filter((r) => String(r.date || "").slice(0, 7) === month) : scoped),
-    [scoped, month]
-  );
+  // KPI ยึดตาม เดือน > ปี > ทั้งหมด
+  const kpiRecords = useMemo(() => {
+    if (month) return scoped.filter((r) => String(r.date || "").slice(0, 7) === month);
+    if (year) return scoped.filter((r) => String(r.date || "").slice(0, 4) === year);
+    return scoped;
+  }, [scoped, year, month]);
   const salesTotals = useMemo(() => groupTotals(kpiRecords, "gmv"), [kpiRecords]);
   const unitTotals = useMemo(() => groupTotals(kpiRecords, "units"), [kpiRecords]);
   // sparkline รายวันต่อกลุ่ม (total = ทั้งหมด)
@@ -101,12 +117,14 @@ export function ExecutiveSummaryView({ records = [], loading = false, error = fa
     return out;
   }, [kpiRecords]);
 
-  // ป้ายช่วงเวลา: เลือกเดือน = เดือนนั้น, ไม่เลือก = ช่วงจริงทั้งหมด (เดือนแรก – เดือนล่าสุด)
+  // ป้ายช่วงเวลา: เดือน > ปี > ช่วงปีทั้งหมด (เช่น 2024–2026)
   const periodLabel = month
-    ? monthName(month, lang)
-    : months.length
-      ? `${monthName(months[months.length - 1], lang)} – ${monthName(months[0], lang)}`
-      : t("exec2.kpiSub");
+    ? `${monthShortName(month, lang)} ${month.slice(0, 4)}`
+    : year
+      ? year
+      : years.length
+        ? `${years[years.length - 1]}–${years[0]}`
+        : t("exec2.kpiSub");
   const isFirstLoad = loading && records.length === 0;
 
   return (
@@ -119,19 +137,29 @@ export function ExecutiveSummaryView({ records = [], loading = false, error = fa
             {t("exec2.sub")} · {periodLabel}
           </p>
         </div>
+        {/* กรอง ปี -> เดือน (เลือกปีก่อน แล้วค่อยเลือกเดือนของปีนั้น) */}
         <div className="flex items-center gap-2">
-          <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">{t("trend.month")}</span>
+          <select
+            value={year}
+            onChange={(e) => { setYear(e.target.value); setMonth(""); }}
+            aria-label={t("trend.year")}
+            className={`${fieldCls} cursor-pointer`}
+          >
+            <option value="">{t("exec2.allYears")}</option>
+            {years.map((y) => (
+              <option key={y} value={y}>{y}</option>
+            ))}
+          </select>
           <select
             value={month}
             onChange={(e) => setMonth(e.target.value)}
+            disabled={!year}
             aria-label={t("trend.month")}
-            className={`${fieldCls} cursor-pointer`}
+            className={`${fieldCls} cursor-pointer disabled:cursor-not-allowed disabled:opacity-40`}
           >
-            <option value="">{t("filter.all")}</option>
-            {months.map((m) => (
-              <option key={m} value={m}>
-                {monthName(m, lang)}
-              </option>
+            <option value="">{t("exec2.allMonths")}</option>
+            {monthsOfYear.map((m) => (
+              <option key={m} value={m}>{monthShortName(m, lang)}</option>
             ))}
           </select>
         </div>

@@ -36,6 +36,7 @@ import {
   savePlatformOrder,
   applyPlatformOrder,
 } from "../utils/data";
+import { allowedViews } from "../utils/access";
 import { APP_VERSION } from "../version";
 
 const EMPTY_FILTERS = {
@@ -56,6 +57,8 @@ export default function SalesPage({ onLogout, user }) {
   const { settings, reloadSettings } = useSettings();
   const canOpenAdmin = ["admin", "itsupport"].includes(user?.role);
   const isIt = user?.role === "itsupport";
+  // มุมมองที่ผู้ใช้เห็นได้ (menu/xbloom/executive) — จาก access.views หรือค่าเริ่มต้นตาม role
+  const viewSet = useMemo(() => allowedViews(user), [user]);
   const [filters, setFilters] = useState(EMPTY_FILTERS);
   const [adminOpen, setAdminOpen] = useState(false);
   const [logOpen, setLogOpen] = useState(false);
@@ -128,6 +131,11 @@ export default function SalesPage({ onLogout, user }) {
     }
   }, [canOverview, filters.platform, orderedPlatforms]);
 
+  // ถ้าอยู่ในมุมมองที่ไม่มีสิทธิ์เห็น → เด้งกลับแดชบอร์ด
+  useEffect(() => {
+    if (["menu", "xbloom", "executive"].includes(view) && !viewSet.has(view)) setView("dashboard");
+  }, [view, viewSet]);
+
   // เช็คว่า backend เปิดใช้ AI ไหม
   const [aiEnabled, setAiEnabled] = useState(false);
   useEffect(() => {
@@ -152,7 +160,7 @@ export default function SalesPage({ onLogout, user }) {
         onChangeView={goView}
         locations={locations}
         showOverview={canOverview}
-        showExecutive={canOpenAdmin}
+        views={viewSet}
       />
 
       <div className="lg:pl-64">
@@ -175,8 +183,8 @@ export default function SalesPage({ onLogout, user }) {
               { v: "dashboard", label: t("nav.dashboard") },
               { v: "menu", label: t("nav.mainMenu") },
               { v: "xbloom", label: t("nav.xbloomView") },
-              ...(canOpenAdmin ? [{ v: "executive", label: t("nav.executive") }] : []),
-            ].map((it) => {
+              { v: "executive", label: t("nav.executive") },
+            ].filter((it) => it.v === "dashboard" || viewSet.has(it.v)).map((it) => {
               // "แดชบอร์ด" active เฉพาะตอน overview (ไม่ได้เลือกช่องทาง) → active ทีละปุ่มเดียว
               const on = it.v === "dashboard" ? view === "dashboard" && !filters.platform : view === it.v;
               return (
